@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
       GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
     steps:
@@ -73,9 +75,6 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: 准备 Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: 缓存 NDK / CMake
         uses: actions/cache@v4
         with:
@@ -86,24 +85,42 @@ jobs:
 
       - name: 安装 SDK / NDK / CMake
         run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_SDK_ROOT=$ANDROID_HOME
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/cmdline-tools" || true
+          if ! command -v sdkmanager >/dev/null; then
+            SDKM=$(find "$ANDROID_HOME" -maxdepth 5 -name sdkmanager -type f | head -1)
+            echo "fallback sdkmanager: $SDKM"
+            export PATH="$(dirname "$SDKM"):$PATH"
+          fi
+          command -v sdkmanager || { echo "sdkmanager 缺失"; exit 1; }
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager --install \
-            "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
-            "ndk;28.2.13676358" "cmake;3.22.1"
+            "platform-tools" "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1" \
+            2>&1 | tee sdk-install.log
+          if ! sdkmanager --install "ndk;28.2.13676358" 2>&1 | tee -a sdk-install.log; then
+            echo "⚠️ 指定 NDK 不可用，改用预装 NDK"
+            NDK=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -1)
+            echo "使用 NDK: $NDK"
+            sed -i "s|ndkVersion \".*\"|ndkVersion \"$(basename "$NDK")\"|" android/app/build.gradle
+          fi
+          sdkmanager --list | head -25
 
       - name: 安装前端依赖
-        run: npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/
+        run: npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/ 2>&1 | tee npm-ci.log
 
       - name: 构建 Web 资源
         run: |
           if [ "${{ github.event.inputs.fast }}" = "true" ]; then
-            npm run build:capacitor:fast
+            npm run build:capacitor:fast 2>&1 | tee vite-build.log
           else
-            npm run build:capacitor
+            npm run build:capacitor 2>&1 | tee vite-build.log
           fi
 
       - name: 同步 Capacitor 工程
-        run: npx cap sync android
+        run: npx cap sync android 2>&1 | tee cap-sync.log
 
       - name: 生成发布签名
         working-directory: android
@@ -124,7 +141,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee ../gradle-build.log
 
       - name: 整理产物
         run: |
@@ -161,6 +178,10 @@ jobs:
             echo "=== zip 完整性 ==="; unzip -t folia-project.zip 2>&1 | tail -6
             echo "=== 关键文件 ==="; for f in package.json package-lock.json capacitor.config.json android/gradlew android/app/build.gradle; do test -f "$f" && echo "OK $f" || echo "MISSING $f"; done
             echo "=== 最近日志 ==="; find android -name '*.log' -o -name 'output.txt' 2>/dev/null | head -5
+            for f in sdk-install.log npm-ci.log vite-build.log cap-sync.log gradle-build.log; do
+              if [ -f "$f" ]; then echo "=== $f 尾部 ==="; tail -70 "$f"; fi
+            done
+            echo "=== 磁盘 ==="; df -h . | tail -2
           } > 构建诊断.txt 2>&1 || true
           git config user.name "folia-build-bot"
           git config user.email "folia-build-bot@localhost"
