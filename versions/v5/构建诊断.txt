@@ -1,0 +1,55 @@
+=== 根目录 ===
+total 39584
+drwxr-xr-x 27 runner runner     4096 Nov 23 16:19 .
+drwxr-xr-x  3 runner runner     4096 Nov 23 16:19 ..
+-rw-r--r--  1 runner runner    20732 Nov 23 16:19 .all-contributorsrc
+-rw-r--r--  1 runner runner       61 Nov 23 16:19 .editorconfig
+-rw-r--r--  1 runner runner     2698 Nov 23 16:19 .env.example
+drwxr-xr-x  2 runner runner     4096 Nov 23 16:19 .gemini
+drwxr-xr-x  7 runner runner     4096 Nov 23 16:19 .git
+-rw-r--r--  1 runner runner      855 Nov 23 16:19 .gitattributes
+drwxr-xr-x  3 runner runner     4096 Nov 23 16:19 .github
+-rw-r--r--  1 runner runner     2981 Nov 23 16:19 .gitignore
+-rw-r--r--  1 runner runner     4622 Nov 23 16:19 .gitlab-ci.yml
+-rw-r--r--  1 runner runner      141 Nov 23 16:19 .npmrc
+-rw-r--r--  1 runner runner        3 Nov 23 16:19 .nvmrc
+-rw-r--r--  1 runner runner    18252 Nov 23 16:19 AGENTS.md
+-rw-r--r--  1 runner runner    48206 Nov 23 16:19 ANDROID_PORT.md
+-rw-r--r--  1 runner runner       77 Nov 23 16:19 CLAUDE.md
+-rw-r--r--  1 runner runner     7887 Nov 23 16:19 CONTRIBUTING.en.md
+-rw-r--r--  1 runner runner     6333 Nov 23 16:19 CONTRIBUTING.md
+-rw-r--r--  1 runner runner    31861 Nov 23 16:19 CONTRIBUTORS.md
+-rw-r--r--  1 runner runner     8865 Nov 23 16:19 GitCode一键出APK.py
+-rw-r--r--  1 runner runner    34523 Nov 23 16:19 LICENSE
+-rw-r--r--  1 runner runner    11007 Nov 23 16:19 README.en.md
+-rw-r--r--  1 runner runner       12 Nov 23 16:19 README.md
+-rw-r--r--  1 runner runner     2772 Nov 23 16:19 THIRD-PARTY-NOTICES.md
+drwxr-xr-x  5 runner runner     4096 Nov 23 16:19 android
+drwxr-xr-x  2 runner runner     4096 Nov 23 16:19 api
+drwxr-xr-x  2 runner runner     4096 Nov 23 16:19 api-ts
+drwxr-xr-x  2 runner runner     4096 Nov 23 16:19 assets
+-rw-r--r--  1 runner runner     2494 Nov 23 16:19 benchmark_chorus.js
+drwxr-xr-x  5 runner runner     4096 Nov 23 16:19 build
+-rw-r--r--  1 runner runner      588 Nov 23 16:19 capacitor.config.json
+drwxr-xr-x  3 runner runner     4096 Nov 23 16:19 deploy
+drwxr-xr-x 18 runner runner     4096 Nov 23 16:19 dev
+-rw-r--r--  1 runner runner      522 Nov 23 16:19 dev-probe.html
+drwxr-xr-x  5 runner runner     4096 Nov 23 16:19 docs
+drwxr-xr-x 20 runner runner     4096 Nov 23 16:19 electron
+-rw-r--r--  1 runner runner   332987 Nov 23 16:19 eslint-suppressions.json
+-rw-r--r--  1 runner runner    10790 Nov 23 16:19 eslint.config.mjs
+-rw-r--r--  1 runner runner 38883533 Nov 23 16:19 folia-project.zip
+=== zip 完整性 ===
+    testing: 环境检查.py          OK
+    testing: 一键推送到GitHub.py   OK
+    testing: 取回APK.py             OK
+    testing: GitCode一键出APK.py   OK
+    testing: 定制说明.md          OK
+No errors detected in compressed data of folia-project.zip.
+=== 关键文件 ===
+OK package.json
+OK package-lock.json
+OK capacitor.config.json
+OK android/gradlew
+OK android/app/build.gradle
+=== 最近日志 ===
