@@ -42,11 +42,23 @@ jobs:
 
       - name: 展开完整工程（源码以单个压缩包推送，避免数千小文件）
         run: |
-          unzip -q folia-project.zip
-          chmod +x android/gradlew
-          # GitHub runner 走官方源更快，避免国内镜像跨境
+          ls -lh folia-project.zip
+          python3 - <<'PY'
+          import zipfile, os
+          z = zipfile.ZipFile('folia-project.zip')
+          n = 0
+          for info in z.infolist():
+              name = info.filename
+              if name.endswith('/') or name.startswith('.github/') or name == 'README.md':
+                  continue
+              z.extract(info, '.')
+              n += 1
+          print('展开文件数:', n)
+          os.chmod('android/gradlew', 0o755)
+          PY
           sed -i 's#https://mirrors.cloud.tencent.com/gradle/#https://services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties || true
-          ls -la | head -20
+          test -f package.json && test -f android/gradlew && test -f capacitor.config.json
+          ls -la | head -25
 
       - name: 准备 Node.js 24
         uses: actions/setup-node@v4
@@ -140,6 +152,21 @@ jobs:
             git commit -m "chore: 自动回推编译产物 [skip ci]"
             git push origin HEAD:main
           fi
+
+      - name: 失败诊断回推
+        if: failure()
+        run: |
+          {
+            echo "=== 根目录 ==="; ls -la | head -40
+            echo "=== zip 完整性 ==="; unzip -t folia-project.zip 2>&1 | tail -6
+            echo "=== 关键文件 ==="; for f in package.json package-lock.json capacitor.config.json android/gradlew android/app/build.gradle; do test -f "$f" && echo "OK $f" || echo "MISSING $f"; done
+            echo "=== 最近日志 ==="; find android -name '*.log' -o -name 'output.txt' 2>/dev/null | head -5
+          } > 构建诊断.txt 2>&1 || true
+          git config user.name "folia-build-bot"
+          git config user.email "folia-build-bot@localhost"
+          git add -f 构建诊断.txt
+          git commit -m "chore: 构建诊断 [skip ci]" || true
+          git push origin HEAD:main || true
 
       - name: 失败时上传构建日志
         if: failure()
