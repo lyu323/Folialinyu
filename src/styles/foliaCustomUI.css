@@ -1,0 +1,592 @@
+/*
+ * Folia 定制版 v3 · 主题与 UI 增强层
+ *
+ * 全部规则门控在 html[data-folia-custom='true'] 下；模块不加载时上游样式零变化。
+ * 只做视觉层，不改任何 React 组件结构 / 类名依赖 / 动画时序。
+ */
+
+/* ---------------------------------------------------------- 三套主题（CSS 变量驱动） */
+html[data-folia-custom='true'],
+html[data-folia-custom='true'][data-folia-theme='aurora'] {
+  --folia-c-bg: #141033;
+  --folia-c-bg-deep: #0b0820;
+  --folia-c-surface: #1e1946;
+  --folia-c-surface-2: #2a2260;
+  --folia-c-border: rgba(167, 139, 250, 0.20);
+  --folia-c-border-strong: rgba(167, 139, 250, 0.40);
+  --folia-c-accent: #a78bfa;
+  --folia-c-accent-2: #7fe7d5;
+  --folia-c-text: #ecebff;
+  --folia-c-text-dim: #b3ade0;
+  --folia-c-glow: rgba(120, 92, 230, 0.22);
+}
+html[data-folia-custom='true'][data-folia-theme='midnight'] {
+  --folia-c-bg: #0c1020;
+  --folia-c-bg-deep: #05070f;
+  --folia-c-surface: #161c33;
+  --folia-c-surface-2: #20294a;
+  --folia-c-border: rgba(139, 157, 255, 0.20);
+  --folia-c-border-strong: rgba(139, 157, 255, 0.42);
+  --folia-c-accent: #8b9dff;
+  --folia-c-accent-2: #78d4ff;
+  --folia-c-text: #eaf0ff;
+  --folia-c-text-dim: #a9b4da;
+  --folia-c-glow: rgba(70, 100, 210, 0.20);
+}
+html[data-folia-custom='true'][data-folia-theme='ember'] {
+  --folia-c-bg: #1c1026;
+  --folia-c-bg-deep: #100815;
+  --folia-c-surface: #301c3c;
+  --folia-c-surface-2: #452544;
+  --folia-c-border: rgba(255, 157, 122, 0.20);
+  --folia-c-border-strong: rgba(255, 157, 122, 0.42);
+  --folia-c-accent: #ff9d7a;
+  --folia-c-accent-2: #ffd08a;
+  --folia-c-text: #fff0e8;
+  --folia-c-text-dim: #d6b7b6;
+  --folia-c-glow: rgba(210, 90, 110, 0.20);
+}
+
+html[data-folia-custom='true'] {
+  /* Android 常见中文字体补齐：修部分 ROM 竖排歌词叠字 / 越南语组合字母错位 */
+  --font-cjk-sans: "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", "Source Han Sans SC",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans JP", sans-serif;
+  --font-cjk-serif: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "STSong",
+    "SimSun", "Noto Serif JP", serif;
+}
+
+html[data-folia-custom='true'] body {
+  background-color: var(--folia-c-bg);
+  color: var(--folia-c-text);
+}
+
+/* 主容器：盖掉截图里那种纯黑 + 杂乱网格感，换成柔和的深紫蓝层次 */
+html[data-folia-custom='true'] [data-folia-app-shell] {
+  background-color: var(--folia-c-bg);
+  background-image:
+    radial-gradient(105% 55% at 50% -8%, var(--folia-c-glow), transparent 72%),
+    radial-gradient(60% 42% at 100% 100%, rgba(127, 231, 213, 0.055), transparent 78%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 触屏反馈 */
+html[data-folia-custom='true'] [data-folia-app-shell] :where(button, [role='button'], [role='tab']),
+html[data-folia-custom='true'] [data-folia-settings-overlay] :where(button, [role='button'], [role='tab']) {
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+html[data-folia-custom='true'] [data-folia-app-shell] :where(button, [role='button'], [role='tab']):active,
+html[data-folia-custom='true'] [data-folia-settings-overlay] :where(button, [role='button'], [role='tab']):active {
+  transform: scale(0.965);
+}
+
+/* 面板 / 标签栏 / 底部工具条：玻璃质感 + 统一圆角描边 */
+html[data-folia-custom='true'] [data-folia-grid-tabs],
+html[data-folia-custom='true'] [data-folia-settings-overlay] [role='dialog'],
+html[data-folia-custom='true'] [data-folia-app-shell] [role='toolbar'] {
+  border: 1px solid var(--folia-c-border);
+  border-radius: 20px;
+  background-color: color-mix(in srgb, var(--folia-c-surface) 84%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+html[data-folia-custom='true'] [data-folia-grid-tabs] > button[aria-selected='true'] {
+  border-color: var(--folia-c-border-strong);
+  box-shadow: 0 0 0 1px var(--folia-c-border-strong) inset;
+}
+
+/* 滚动条 / 焦点 */
+html[data-folia-custom='true'] ::-webkit-scrollbar { width: 6px; height: 6px; }
+html[data-folia-custom='true'] ::-webkit-scrollbar-track { background: transparent; }
+html[data-folia-custom='true'] ::-webkit-scrollbar-thumb {
+  background: var(--folia-c-border-strong); border-radius: 999px;
+}
+html[data-folia-custom='true'] :focus-visible {
+  outline: 2px solid var(--folia-c-accent); outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------- 空状态卡片化（截图里那块灰字） */
+/* 由增强模块扫描文案后打上 data-folia-empty-state，CSS 才能精准命中而不误伤播放页。 */
+html[data-folia-custom='true'] [data-folia-empty-state='true'] {
+  max-width: min(600px, 88vw) !important;
+  margin: 5vh auto !important;
+  padding: 30px 26px !important;
+  border: 1px solid var(--folia-c-border-strong) !important;
+  border-radius: 24px !important;
+  background: linear-gradient(160deg, var(--folia-c-surface), var(--folia-c-bg-deep)) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34), 0 0 32px var(--folia-c-glow) !important;
+  text-align: center !important;
+  color: var(--folia-c-text) !important;
+  opacity: 1 !important;
+}
+html[data-folia-custom='true'] [data-folia-empty-state='true']:before {
+  content: '';
+  display: block; width: 46px; height: 3px; margin: 0 auto 20px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--folia-c-accent), var(--folia-c-accent-2));
+}
+html[data-folia-custom='true'] [data-folia-empty-state='true'] :where(h1, h2, h3, p, span, div) {
+  color: var(--folia-c-text) !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+/* 关闭时由增强模块直接移除 data-folia-empty-state 属性，样式自然不生效。 */
+
+/* ---------------------------------------------------------- 字号缩放 */
+html[data-folia-custom='true'][data-folia-scale='90']  [data-folia-app-shell] { zoom: .90; }
+html[data-folia-custom='true'][data-folia-scale='110'] [data-folia-app-shell] { zoom: 1.10; }
+html[data-folia-custom='true'][data-folia-scale='120'] [data-folia-app-shell] { zoom: 1.20; }
+
+/* ---------------------------------------------------------- 沉浸模式 */
+html[data-folia-custom='true'][data-folia-immersive='true'] [data-folia-app-shell] :where([role='toolbar'], [data-folia-grid-tabs]) {
+  opacity: 0; pointer-events: none;
+}
+html[data-folia-custom='true'][data-folia-immersive='true'] .folia-c-fab { opacity: .22; }
+
+/* ---------------------------------------------------------- 3D 环境光效背景（可选） */
+html[data-folia-custom='true'][data-folia-ambient='true'] #root {
+  position: relative; z-index: 1;
+}
+html[data-folia-custom='true'] .folia-c-ambient {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .30;
+}
+
+/* ---------------------------------------------------------- 低耗电档 */
+html[data-folia-custom='true'][data-folia-power='eco'] :where(
+  [data-folia-app-shell], [data-folia-settings-overlay], [data-folia-app-shell] *,
+  [data-folia-settings-overlay] *
+) {
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  box-shadow: none !important; filter: none !important;
+}
+html[data-folia-custom='true'][data-folia-power='eco'] :where(
+  [data-folia-app-shell] *, [data-folia-settings-overlay] *
+) {
+  animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+  transition-duration: 80ms !important;
+}
+html[data-folia-custom='true'][data-folia-power='eco'] .folia-c-ambient { display: none; }
+html[data-folia-custom='true'][data-folia-power='vivid'] [data-folia-app-shell] {
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgba(167, 139, 250, 0.14), transparent 70%),
+    radial-gradient(70% 50% at 100% 100%, rgba(127, 231, 213, 0.08), transparent 78%);
+}
+
+/* ---------------------------------------------------------- 悬浮快捷球 / 菜单 / Toast */
+html[data-folia-custom='true'] .folia-c-fab {
+  position: fixed; right: 14px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  z-index: 2147483000; width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--folia-c-border-strong);
+  background: linear-gradient(145deg, var(--folia-c-surface-2), var(--folia-c-bg-deep));
+  box-shadow: 0 6px 20px rgba(0,0,0,.38), 0 0 16px var(--folia-c-glow);
+  color: var(--folia-c-text); font: 600 18px/1 system-ui, sans-serif;
+  display: grid; place-items: center; touch-action: none;
+  user-select: none; -webkit-user-select: none; cursor: pointer; opacity: .84;
+}
+html[data-folia-custom='true'] .folia-c-fab:active { opacity: 1; }
+html[data-folia-custom='true'][data-folia-fab='hidden'] .folia-c-fab { display: none; }
+
+html[data-folia-custom='true'] .folia-c-menu {
+  position: fixed; right: 14px;
+  bottom: calc(148px + env(safe-area-inset-bottom, 0px));
+  z-index: 2147483001; width: min(280px, calc(100vw - 28px));
+  max-height: min(74vh, 560px); overflow-y: auto; padding: 10px;
+  border-radius: 20px; border: 1px solid var(--folia-c-border-strong);
+  background: linear-gradient(160deg, var(--folia-c-surface), var(--folia-c-bg-deep));
+  box-shadow: 0 18px 50px rgba(0,0,0,.55);
+  color: var(--folia-c-text);
+  font-family: system-ui, -apple-system, "Noto Sans CJK SC", sans-serif; font-size: 13px;
+}
+html[data-folia-custom='true'] .folia-c-menu[data-open='false'] { display: none; }
+html[data-folia-custom='true'] .folia-c-menu__title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 8px 10px; color: var(--folia-c-text-dim); font-size: 12px; letter-spacing: .04em;
+}
+html[data-folia-custom='true'] .folia-c-menu__group {
+  padding: 6px 8px 5px; color: var(--folia-c-text-dim); font-size: 11px;
+}
+html[data-folia-custom='true'] .folia-c-menu__item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 9px 12px; margin-bottom: 4px;
+  border: 1px solid transparent; border-radius: 12px;
+  background: rgba(255,255,255,.05); color: var(--folia-c-text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+html[data-folia-custom='true'] .folia-c-menu__item:active { transform: scale(.98); }
+html[data-folia-custom='true'] .folia-c-menu__item[aria-checked='true'] {
+  border-color: var(--folia-c-accent); background: color-mix(in srgb, var(--folia-c-accent) 16%, transparent);
+}
+html[data-folia-custom='true'] .folia-c-menu__hint {
+  display: block; margin-top: 2px; color: var(--folia-c-text-dim); font-size: 11px;
+}
+html[data-folia-custom='true'] .folia-c-menu__foot {
+  padding: 8px; color: var(--folia-c-text-dim); font-size: 11px; line-height: 1.5;
+}
+html[data-folia-custom='true'] .folia-c-badge {
+  border-radius: 999px; padding: 2px 8px;
+  background: color-mix(in srgb, var(--folia-c-accent-2) 16%, transparent);
+  color: var(--folia-c-accent-2); font-size: 11px;
+}
+html[data-folia-custom='true'] .folia-c-toast {
+  position: fixed; left: 50%; bottom: calc(162px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%); z-index: 2147483002; max-width: 82vw;
+  padding: 10px 16px; border-radius: 999px;
+  border: 1px solid var(--folia-c-border-strong);
+  background: color-mix(in srgb, var(--folia-c-surface) 95%, transparent);
+  color: var(--folia-c-text); font: 13px/1.4 system-ui, -apple-system, "Noto Sans CJK SC", sans-serif;
+  text-align: center; box-shadow: 0 8px 26px rgba(0,0,0,.45); pointer-events: none;
+}
+
+/* ==================================================================
+ * v4 追加层：4 套新主题 + 液态玻璃动态特效 + 强调色自定义
+ * 全部仍门控在 html[data-folia-custom='true'] 下，模块不加载时零影响。
+ * ================================================================== */
+
+/* ---------------------------------------------------------- 新增 4 套主题 */
+html[data-folia-custom='true'][data-folia-theme='glass'] {
+  --folia-c-bg: #12122e;
+  --folia-c-bg-deep: #080a20;
+  --folia-c-surface: rgba(255, 255, 255, .09);
+  --folia-c-surface-2: rgba(255, 255, 255, .14);
+  --folia-c-border: rgba(255, 255, 255, .22);
+  --folia-c-border-strong: rgba(255, 255, 255, .40);
+  --folia-c-accent: #b9a8ff;
+  --folia-c-accent-2: #7fe7d5;
+  --folia-c-text: #f6f3ff;
+  --folia-c-text-dim: #c3bce6;
+  --folia-c-glow: rgba(130, 105, 235, .28);
+}
+html[data-folia-custom='true'][data-folia-theme='sakura'] {
+  --folia-c-bg: #24162b;
+  --folia-c-bg-deep: #160d1c;
+  --folia-c-surface: #3a2340;
+  --folia-c-surface-2: #4d2e50;
+  --folia-c-border: rgba(255, 174, 206, .22);
+  --folia-c-border-strong: rgba(255, 174, 206, .44);
+  --folia-c-accent: #ffadd2;
+  --folia-c-accent-2: #ffd9a8;
+  --folia-c-text: #fff1f6;
+  --folia-c-text-dim: #d9b6c8;
+  --folia-c-glow: rgba(220, 110, 165, .20);
+}
+html[data-folia-custom='true'][data-folia-theme='neon'] {
+  --folia-c-bg: #07131c;
+  --folia-c-bg-deep: #030a11;
+  --folia-c-surface: #0e2230;
+  --folia-c-surface-2: #153448;
+  --folia-c-border: rgba(57, 232, 255, .22);
+  --folia-c-border-strong: rgba(57, 232, 255, .46);
+  --folia-c-accent: #39e8ff;
+  --folia-c-accent-2: #ff5ce1;
+  --folia-c-text: #e6fbff;
+  --folia-c-text-dim: #9bc6d4;
+  --folia-c-glow: rgba(30, 190, 230, .22);
+}
+html[data-folia-custom='true'][data-folia-theme='ink'] {
+  --folia-c-bg: #17171a;
+  --folia-c-bg-deep: #0c0c0e;
+  --folia-c-surface: #222226;
+  --folia-c-surface-2: #2d2d32;
+  --folia-c-border: rgba(224, 224, 224, .16);
+  --folia-c-border-strong: rgba(224, 224, 224, .32);
+  --folia-c-accent: #d8d8dc;
+  --folia-c-accent-2: #a8b0b8;
+  --folia-c-text: #f2f2f4;
+  --folia-c-text-dim: #a6a6ae;
+  --folia-c-glow: rgba(160, 160, 170, .10);
+}
+
+/* ---------------------------------------------------------- 强调色自定义（色相 0–330） */
+html[data-folia-custom='true'][data-folia-theme][data-folia-hue] {
+  --folia-c-accent: hsl(calc(var(--folia-hue) * 1deg), 88%, 72%);
+  --folia-c-accent-2: hsl(calc((var(--folia-hue) + 55) * 1deg), 82%, 70%);
+  --folia-c-border: hsl(calc(var(--folia-hue) * 1deg), 70%, 70% / .22);
+  --folia-c-border-strong: hsl(calc(var(--folia-hue) * 1deg), 82%, 72% / .44);
+  --folia-c-glow: hsl(calc(var(--folia-hue) * 1deg), 80%, 60% / .22);
+}
+
+/* ---------------------------------------------------------- 液态玻璃：动态光斑背景层 */
+html[data-folia-custom='true'] .folia-c-liquid {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+}
+html[data-folia-custom='true'] .folia-c-liquid i {
+  position: absolute; display: block; border-radius: 50%;
+  filter: blur(58px); opacity: .46;
+  background: radial-gradient(circle at 36% 34%, rgba(255,255,255,.22), transparent 64%);
+  will-change: transform;
+}
+html[data-folia-custom='true'] .folia-c-liquid i:nth-child(1) {
+  width: 52vw; height: 52vw; left: -12vw; top: -10vh;
+  background-color: var(--folia-c-accent);
+  animation: folia-liquid-a 24s ease-in-out infinite alternate;
+}
+html[data-folia-custom='true'] .folia-c-liquid i:nth-child(2) {
+  width: 46vw; height: 46vw; right: -10vw; top: 18vh;
+  background-color: var(--folia-c-accent-2);
+  animation: folia-liquid-b 30s ease-in-out infinite alternate;
+}
+html[data-folia-custom='true'] .folia-c-liquid i:nth-child(3) {
+  width: 40vw; height: 40vw; left: 22vw; bottom: -16vh;
+  background-color: #d06aa8;
+  animation: folia-liquid-c 27s ease-in-out infinite alternate;
+}
+html[data-folia-custom='true'] .folia-c-liquid i:nth-child(4) {
+  width: 30vw; height: 30vw; right: 18vw; bottom: 6vh;
+  background-color: #ffd08a;
+  animation: folia-liquid-a 34s ease-in-out infinite alternate-reverse;
+}
+@keyframes folia-liquid-a {
+  from { transform: translate3d(-8%, -6%, 0) scale(.88); }
+  to   { transform: translate3d(26%, 20%, 0) scale(1.22); }
+}
+@keyframes folia-liquid-b {
+  from { transform: translate3d(10%, 4%, 0) scale(1.14); }
+  to   { transform: translate3d(-20%, 24%, 0) scale(.84); }
+}
+@keyframes folia-liquid-c {
+  from { transform: translate3d(-12%, 10%, 0) scale(.92); }
+  to   { transform: translate3d(20%, -18%, 0) scale(1.2); }
+}
+/* 细噪点：让玻璃有真实材质，而不是纯渐变塑料感。内联 SVG，无外链。 */
+html[data-folia-custom='true'] .folia-c-liquid b {
+  position: absolute; inset: 0; opacity: .16; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.78' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+html[data-folia-custom='true'][data-folia-liquid='off'] .folia-c-liquid { display: none; }
+html[data-folia-custom='true'][data-folia-power='eco'] .folia-c-liquid { display: none; }
+html[data-folia-custom='true'][data-folia-liquid='low'] .folia-c-liquid i { opacity: .26; filter: blur(72px); animation-duration: 60s; }
+html[data-folia-custom='true'][data-folia-liquid='low'] .folia-c-liquid b { opacity: .08; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-folia-custom='true'] .folia-c-liquid i { animation: none !important; }
+}
+
+/* ---------------------------------------------------------- 液态玻璃主题：亚克力面板 + 流动光泽 */
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-app-shell] {
+  background-color: var(--folia-c-bg);
+  background-image:
+    radial-gradient(100% 55% at 50% -8%, var(--folia-c-glow), transparent 74%),
+    linear-gradient(170deg, #1c1b48, #0b0c26 70%, #080a1e);
+}
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-settings-overlay] [role='dialog'],
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-app-shell] [role='toolbar'] {
+  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 22px;
+  background-color: rgba(255, 255, 255, .08);
+  background-image: linear-gradient(108deg, transparent 28%, rgba(255,255,255,.20) 48%, transparent 66%);
+  background-size: 280% 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .36),
+    inset 0 -1px 0 rgba(255, 255, 255, .07),
+    0 14px 42px rgba(8, 6, 30, .40);
+  -webkit-backdrop-filter: blur(26px) saturate(185%);
+  backdrop-filter: blur(26px) saturate(185%);
+  animation: folia-glass-sheen 7s linear infinite;
+}
+@keyframes folia-glass-sheen { from { background-position: 190% 0; } to { background-position: -90% 0; } }
+
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-empty-state='true'] {
+  border-color: rgba(255,255,255,.34) !important;
+  background-color: rgba(255,255,255,.07) !important;
+  background-image: linear-gradient(150deg, rgba(255,255,255,.12), rgba(255,255,255,.02)) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 20px 54px rgba(8,6,30,.44) !important;
+}
+
+/* 液态按钮：按下时轮廓轻微变形，像按压一颗水滴 */
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-app-shell] :where(button, [role='button']):active {
+  border-radius: 42% 58% 54% 46% / 50% 44% 56% 50%;
+}
+
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='off'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='off'] [role='dialog'],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='off'] [role='toolbar'] {
+  animation: none;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='low'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='low'] [role='dialog'],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='low'] [role='toolbar'] {
+  animation-duration: 18s;
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+}
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-power='eco'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-power='eco'] [role='dialog'],
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-power='eco'] [role='toolbar'] {
+  animation: none; background-image: none;
+}
+
+/* 悬浮球在液态主题下也变成玻璃水滴 */
+html[data-folia-custom='true'][data-folia-theme='glass'] .folia-c-fab {
+  border-color: rgba(255,255,255,.44);
+  background: linear-gradient(150deg, rgba(255,255,255,.24), rgba(255,255,255,.06));
+  -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 10px 26px rgba(8,6,30,.46);
+}
+html[data-folia-custom='true'][data-folia-theme='glass'] .folia-c-menu {
+  border-color: rgba(255,255,255,.30);
+  background: linear-gradient(160deg, rgba(48,42,96,.92), rgba(16,16,46,.94));
+  -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 20px 54px rgba(0,0,0,.58);
+}
+
+/* 背景光斑层（液态 / 3D 环境光效）都置于 app-shell 背景之上、内容之下。
+   给 app-shell 建一个独立层叠上下文，负层级才有确定的落点，不会盖住文字。 */
+html[data-folia-custom='true'] #root { position: relative; z-index: 1; }
+html[data-folia-custom='true'] [data-folia-app-shell] { isolation: isolate; }
+html[data-folia-custom='true'] .folia-c-liquid { z-index: -1; }
+html[data-folia-custom='true'] .folia-c-ambient { z-index: -1; }
+
+/* ==================================================================
+ * v5 流畅度专项覆盖层
+ *
+ * 目标：把 v4 液态玻璃里最吃 GPU 的「实时滤镜重算」全部换成合成层操作。
+ * 原则：动画只用 transform / opacity；blur 用静态 mask 渐变替代；
+ *       背景层用 contain 隔离；长列表用 content-visibility 跳过屏外绘制。
+ * 全部后置覆盖，且不改 v4 结构，关掉本层即回到 v4 观感。
+ * ================================================================== */
+
+/* ---------------------------------------------------------- 1. 光斑：去掉实时 blur */
+/* v4 的 4 个 filter: blur(58px) 大圆是首卡元凶：每帧都要重算整块模糊。
+   v5 改用静态 radial-gradient 做 mask，颜色仍由 background-color 提供，
+   渐变是预计算的、零逐帧开销；只保留 transform 位移（纯合成层）。 */
+html[data-folia-custom='true'] .folia-c-liquid i {
+  filter: none !important;
+  background-image: none !important;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0%, rgba(0,0,0,.62) 40%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 0%, rgba(0,0,0,.62) 40%, transparent 72%);
+  opacity: .34;
+  contain: layout paint style;
+  will-change: transform;
+}
+/* feTurbulence 噪点每帧合成很贵，v5 默认关掉；材质感改由高光渐变承担。 */
+html[data-folia-custom='true'] .folia-c-liquid b { display: none !important; }
+
+html[data-folia-custom='true'][data-folia-liquid='low'] .folia-c-liquid i {
+  opacity: .20;
+  animation-duration: 60s;
+}
+
+/* ---------------------------------------------------------- 2. 毛玻璃降级 */
+/* 均衡 / 省电档直接不做 backdrop-filter；只有「绚丽」档保留轻量 10px。 */
+html[data-folia-custom='true'] [data-folia-grid-tabs],
+html[data-folia-custom='true'] [data-folia-settings-overlay] [role='dialog'],
+html[data-folia-custom='true'] [data-folia-app-shell] [role='toolbar'],
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-settings-overlay] [role='dialog'],
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-app-shell] [role='toolbar'],
+html[data-folia-custom='true'][data-folia-theme='glass'] .folia-c-menu {
+  -webkit-backdrop-filter: blur(10px) saturate(130%) !important;
+  backdrop-filter: blur(10px) saturate(130%) !important;
+}
+html[data-folia-custom='true'][data-folia-power='balanced'] :where(
+  [data-folia-grid-tabs], [role='dialog'], [role='toolbar'], .folia-c-menu
+),
+html[data-folia-custom='true'][data-folia-power='eco'] :where(
+  [data-folia-grid-tabs], [role='dialog'], [role='toolbar'], .folia-c-menu
+) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ---------------------------------------------------------- 3. 光泽：background-position → transform */
+/* 动 background-position 会触发重绘；改成独立伪元素只动 translate3d。 */
+html[data-folia-custom='true'][data-folia-theme='glass'] [data-folia-grid-tabs],
+html[data-folia-custom='true'][data-folia-theme='glass'] [role='toolbar'] {
+  animation: none !important;
+  background-image: none !important;
+  position: relative;
+  overflow: hidden;
+}
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='high'] [data-folia-grid-tabs]::after,
+html[data-folia-custom='true'][data-folia-theme='glass'][data-folia-liquid='high'] [role='toolbar']::after {
+  content: '';
+  position: absolute; top: -60%; left: -70%;
+  width: 34%; height: 220%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
+  transform: translate3d(0, 0, 0) skewX(-18deg);
+  animation: folia-sheen-transform 7.5s linear infinite;
+  pointer-events: none;
+  will-change: transform;
+}
+@keyframes folia-sheen-transform {
+  to { transform: translate3d(520%, 0, 0) skewX(-18deg); }
+}
+html[data-folia-custom='true'][data-folia-power='balanced'] [data-folia-grid-tabs]::after,
+html[data-folia-custom='true'][data-folia-power='eco'] [data-folia-grid-tabs]::after,
+html[data-folia-custom='true'][data-folia-power='balanced'] [role='toolbar']::after,
+html[data-folia-custom='true'][data-folia-power='eco'] [role='toolbar']::after {
+  display: none;
+}
+
+/* ---------------------------------------------------------- 4. 长列表跳过屏外绘制 */
+/* 只对带语义的列表项生效，不碰歌词容器与 canvas。若个别页面布局异常，
+   在快捷菜单里关掉「列表懒绘制」即可。 */
+html[data-folia-custom='true'][data-folia-lazy-list='true'] [data-folia-app-shell] :where(
+  [role='listitem'], [data-folia-grid-item], [data-folia-card]
+) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+}
+
+/* ---------------------------------------------------------- 5. 悬浮球：transform 拖拽，不触发布局 */
+html[data-folia-custom='true'] .folia-c-fab {
+  will-change: transform;
+  contain: layout style;
+}
+
+/* ---------------------------------------------------------- 6. 一键极速 */
+/* 用户主动开启：所有背景层、滤镜、阴影、非必要动画一次关干净，锁 30fps。
+   歌词 canvas 与音频播放完全不在此列。 */
+html[data-folia-custom='true'][data-folia-turbo='true'] .folia-c-liquid,
+html[data-folia-custom='true'][data-folia-turbo='true'] .folia-c-ambient,
+html[data-folia-custom='true'][data-folia-turbo='true'] .fs-aurora {
+  display: none !important;
+}
+html[data-folia-custom='true'][data-folia-turbo='true'] :where(
+  [data-folia-app-shell], [data-folia-app-shell] *,
+  [data-folia-settings-overlay], [data-folia-settings-overlay] *
+) {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+html[data-folia-custom='true'][data-folia-turbo='true'] :where(
+  [data-folia-app-shell] *, [data-folia-settings-overlay] *
+):not(canvas) {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 60ms !important;
+}
+html[data-folia-custom='true'][data-folia-turbo='true'] [data-folia-grid-tabs]::after,
+html[data-folia-custom='true'][data-folia-turbo='true'] [role='toolbar']::after {
+  display: none !important;
+}
+html[data-folia-custom='true'][data-folia-turbo='true'] .folia-c-fab { opacity: .5; }
+
+/* ---------------------------------------------------------- 7. 空状态卡片在省电档不叠阴影 */
+html[data-folia-custom='true'][data-folia-power='eco'] [data-folia-empty-state='true'],
+html[data-folia-custom='true'][data-folia-turbo='true'] [data-folia-empty-state='true'] {
+  box-shadow: none !important;
+  border-radius: 16px !important;
+}
+
+/* ---------------------------------------------------------- 8. 降低重绘面积 */
+html[data-folia-custom='true'] .folia-c-menu {
+  contain: layout paint style;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+html[data-folia-custom='true'] .folia-c-toast { contain: layout paint style; }
+
+/* ---------------------------------------------------------- 9. 动效偏好兜底 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-folia-custom='true'] .folia-c-liquid i,
+  html[data-folia-custom='true'] [data-folia-grid-tabs]::after,
+  html[data-folia-custom='true'] [role='toolbar']::after {
+    animation: none !important;
+  }
+}

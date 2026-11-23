@@ -1,0 +1,262 @@
+// src/services/onlineMusic/appleMusic/appleMusicDiagnostics.ts
+// Apple Music 在 Android 上的播放现场：最近一次起播的结论，加上伴随 WebView 里那份页面的自述。
+// 只写阶段名、布尔值、状态码、长度和计数；歌曲 id、账号、cookie 和地址都不进报告。
+
+import { readExternalPlaybackEnd, readExternalPlaybackSnapshot } from '../externalPlaybackDiagnostics';
+
+export type AppleMusicPlayAttempt = {
+    at: number;
+    stage: string;
+    error: string;
+    storefront: string;
+    storefrontMatched: boolean | null;
+    previewOnly: boolean | null;
+    isPlaying: boolean | null;
+};
+
+type CompanionDiagnostics = {
+    data?: unknown;
+    companion?: unknown;
+    error?: unknown;
+};
+
+let attempt: AppleMusicPlayAttempt | null = null;
+
+// 失败原因里的 stage 是伙伴返回的固定阶段名（storefront / queue / play / seek）。
+const STAGE_IN_MESSAGE = /\(stage: ([a-z-]+)\)/;
+
+const asRecord = (value: unknown): Record<string, unknown> | null => (
+    value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+);
+const text = (value: unknown, fallback = 'n/a'): string => (typeof value === 'string' && value ? value : fallback);
+const yesNo = (value: unknown): string => (typeof value === 'boolean' ? (value ? 'yes' : 'no') : 'n/a');
+const count = (value: unknown): string => (typeof value === 'number' && Number.isFinite(value) ? String(value) : 'n/a');
+
+/** 起播被页面接受：记下它报告的地区与试听状态，后面失败时用来对照。 */
+export const noteAppleMusicPlayStarted = (data: unknown): void => {
+    const value = asRecord(data);
+    attempt = {
+        at: Date.now(),
+        // "accepted" is not "sounding": the page answers the queue before its player starts.
+        stage: value?.isPlaying === true ? 'playing' : 'accepted',
+        error: '',
+        storefront: text(value?.storefront, ''),
+        storefrontMatched: typeof value?.storefrontMatched === 'boolean' ? value.storefrontMatched : null,
+        previewOnly: typeof value?.previewOnly === 'boolean' ? value.previewOnly : null,
+        isPlaying: typeof value?.isPlaying === 'boolean' ? value.isPlaying : null,
+    };
+};
+
+/** 起播被拒绝：留下伙伴给的阶段名和错误码，报告里就能看出卡在哪一段。 */
+export const noteAppleMusicPlayFailure = (error: unknown): void => {
+    const value = asRecord(error);
+    const message = typeof value?.message === 'string' ? value.message : '';
+    attempt = {
+        at: Date.now(),
+        stage: STAGE_IN_MESSAGE.exec(message)?.[1] ?? 'unknown',
+        error: text(value?.cause, 'unknown'),
+        storefront: attempt?.storefront ?? '',
+        storefrontMatched: attempt?.storefrontMatched ?? null,
+        previewOnly: attempt?.previewOnly ?? null,
+        isPlaying: attempt?.isPlaying ?? null,
+    };
+};
+
+const readCompanionDiagnostics = async (): Promise<CompanionDiagnostics | null> => {
+    if (typeof window === 'undefined') return null;
+    const capacitor = (window as unknown as {
+        Capacitor?: {
+            getPlatform?: () => string;
+            Plugins?: { FoliaAppleMusic?: { diagnostics?: () => Promise<CompanionDiagnostics> } };
+        };
+    }).Capacitor;
+    if (capacitor?.getPlatform?.() !== 'android') return null;
+    const plugin = capacitor?.Plugins?.FoliaAppleMusic;
+    if (typeof plugin?.diagnostics !== 'function') return null;
+    return await plugin.diagnostics();
+};
+
+const formatAttempt = (): string => {
+    if (!attempt) return '  last play: (none)';
+    return `  last play: at=${new Date(attempt.at).toISOString()}`
+        + ` stage=${attempt.stage}`
+        + ` error=${attempt.error || '(none)'}`
+        + ` storefront=${attempt.storefront || 'n/a'}`
+        + ` matched=${attempt.storefrontMatched === null ? 'n/a' : yesNo(attempt.storefrontMatched)}`
+        + ` isPlaying=${attempt.isPlaying === null ? 'n/a' : yesNo(attempt.isPlaying)}`
+        + ` previewOnly=${attempt.previewOnly === null ? 'n/a' : yesNo(attempt.previewOnly)}`;
+};
+
+/**
+ * 设置 → 帮助 → 复制诊断数据里的一节。Android 的 Apple Music 只在隐藏 WebView 里出声，
+ * 「能登录、能搜、能拿歌词，就是没声音」时唯一能说明原因的是那份页面自己的报告：
+ * CDM 有没有被接受、页面在哪个地区、播放器停在哪一步、媒体元素报了什么错。
+ */
+export const readAppleMusicDiagnosticLines = async (): Promise<string[]> => {
+    const lines = [formatAttempt()];
+    let report: CompanionDiagnostics | null = null;
+    try {
+        report = await readCompanionDiagnostics();
+    } catch (error) {
+        lines.push('  companion: (request failed)');
+        console.warn('[AppleMusic] diagnostics request failed', error);
+        return lines;
+    }
+    if (!report) {
+        lines.push('  companion: (no android apple music page)');
+        return lines;
+    }
+    const page = asRecord(report.data) ?? {};
+    const bridge = asRecord(report.companion) ?? {};
+    // The plugin answers without starting a page just to be asked: say which answer this is.
+    const failure = typeof (report as { error?: unknown }).error === 'string' ? (report as { error?: string }).error : '';
+    lines.push(`  companion: ${failure ? `unavailable=${failure}` : 'probed'}`
+        + ` bridge=${yesNo(bridge.bridgeInjected)} loading=${yesNo(bridge.loading)}`
+        + ` pending=${count(bridge.pending)} queued=${count(bridge.queued)}`
+        + ` moveDue=${yesNo(bridge.storefrontMoveDue)} played=${yesNo(bridge.playbackStarted)}`
+        + ` page=${text(bridge.pageUrl, '(none)')}`);
+
+    const drm = asRecord(page.drm);
+    lines.push(`  drm: eme=${yesNo(drm?.eme)} mediaSource=${yesNo(drm?.mediaSource)}`
+        + ` secure=${yesNo(drm?.secure)} widevine=${yesNo(drm?.widevine)}`
+        + ` robustness=${text(drm?.robustness, '(none)')} error=${text(drm?.error, '(none)')}`);
+    // 「访问层通过」与「真的建得出解密器」是两件事：安卓 WebView 上前者成立、后者抛
+    // NotSupportedError / MediaCrypto not available 时，任何歌都放不了，且与播放逻辑无关。
+    const keysVerdict = text(drm?.keys, '');
+    const decode = asRecord(drm?.decode);
+    lines.push(`  drm keys: ${keysVerdict || '(not probed)'}${drm?.keysError ? ` message=${text(drm.keysError, '')}` : ''}`
+        + ` decode=${decode ? Object.entries(decode).map(([kind, verdict]) => `${kind}:${text(verdict, '?')}`).join(' ') : '(not probed)'}`);
+    const emeTexts = Array.isArray(page.eme) ? (page.eme as unknown[]).map(entry => JSON.stringify(entry)) : [];
+    const logTexts = Array.isArray(page.log) ? (page.log as unknown[]).map(line => String(line)) : [];
+    const cryptoRefused = [...emeTexts, ...logTexts].some(line => /MediaCrypto not available/i.test(line));
+    if (keysVerdict && keysVerdict !== 'ok') {
+        lines.push(`  drm verdict: 这台设备的 CDM 在 WebView 里建不出解密器（${keysVerdict}${cryptoRefused ? '，页面同时报 MediaCrypto not available' : ''}）——所有歌曲都会失败，与店铺/账号/播放逻辑无关；先更新 Android System WebView，仍如此则该设备的 Widevine 在 WebView 内不可用`);
+    } else if (keysVerdict === 'ok') {
+        lines.push('  drm verdict: 解密器可创建（CDM 正常），失败原因在其它环节');
+    }
+
+    const player = asRecord(page.player);
+    // 外部播放路线自己的读数：页面说在放，位置却不动，是「卡死在播放器里」而不是暂停或结束。
+    const route = readExternalPlaybackSnapshot();
+    const stalledText = route
+        ? ` stalled=${yesNo(route.stalled)} recoveries=${count(route.recoveries)}`
+            + `${route.gaveUp ? ' gave-up=yes' : ''}`
+            + `${route.unplayable ? ` refused=${route.unplayable}` : ''}`
+            + `${route.stalledForMs === null ? '' : ` still-for=${route.stalledForMs}ms`}`
+        : ' stalled=n/a recoveries=n/a';
+    lines.push(`  player: authorized=${yesNo(player?.authorized)} previewOnly=${yesNo(player?.previewOnly)}`
+        + ` storefront=${text(player?.storefront, '(none)')} country=${text(player?.country, '(none)')}`
+        + ` state=${count(player?.state)} isPlaying=${yesNo(player?.isPlaying)}`
+        + ` volume=${count(player?.volume)} queue=${count(player?.queueLength)}@${count(player?.queuePosition)}`
+        + ` itemIdLen=${count(player?.itemIdLength)}${stalledText}`);
+    lines.push(`  account storefront: ${text(page.accountStorefront, '(unknown)')}`);
+
+    // 「这首歌是怎么被判成播完的」：跳歌抱怨的现场只有这一行能说明是哪条判定。
+    const ended = readExternalPlaybackEnd();
+    if (ended) {
+        lines.push(`  end: at=${new Date(ended.atMs).toISOString()}`
+            + ` reason=${ended.reason}`
+            + ` position=${Math.round(ended.positionSec * 10) / 10}s`
+            + ` duration=${ended.durationSec === null ? 'n/a' : `${Math.round(ended.durationSec * 10) / 10}s`}`);
+    } else {
+        lines.push('  end: (none)');
+    }
+
+    const start = asRecord(page.start);
+    if (start) {
+        lines.push(`  start: pending=${yesNo(start.pending)} failed=${yesNo(start.failed)}`
+            + ` cancelled=${yesNo(start.cancelled)} nudged=${yesNo(start.nudged)}`
+            + ` stage=${text(start.stage, '(none)')} error=${text(start.error, '(none)')}`
+            + ` ageMs=${count(start.ageMs)}`);
+    } else {
+        lines.push('  start: (none)');
+    }
+
+    // 页面自己拒绝这首歌（MusicKit 的 MKError）：以前这条只落在页面日志里，报告上看着像
+    // 「接受起播却没有声音」，于是被当成卡住反复重开。
+    const playError = asRecord(page.playError);
+    if (playError) {
+        lines.push(`  play error: code=${text(playError.mkCode, '(none)')}`
+            + ` reason=${text(playError.reason, '(none)')}`
+            + ` name=${text(playError.name, '(none)')}`
+            + ` ageMs=${count(playError.ageMs)}`
+            + ` message=${String(text(playError.message, '(none)')).slice(0, 80)}`);
+    } else {
+        lines.push('  play error: (none)');
+    }
+
+    const audio = asRecord(page.audio);
+    lines.push(`  audio: elements=${count(audio?.elements)} paused=${yesNo(audio?.paused)}`
+        + ` readyState=${count(audio?.readyState)} networkState=${count(audio?.networkState)}`
+        + ` t=${count(audio?.currentTime)} muted=${yesNo(audio?.muted)} volume=${count(audio?.volume)}`
+        + ` source=${yesNo(audio?.hasSource)} error=${text(audio?.errorText, '(none)')}`
+        + `/${count(audio?.errorCode)}`);
+
+    // 每个媒体元素自己的状态：队列在、CDM 在，却停在 readyState 1 的时候，卡住的是哪一个。
+    const media = asRecord(page.media);
+    const mediaRows = Array.isArray(media?.rows) ? media.rows as Array<Record<string, unknown>> : [];
+    if (mediaRows.length) {
+        lines.push(`  media: total=${count(media?.total)} online=${yesNo(page.online)}`);
+        for (const row of mediaRows.slice(0, 5)) {
+            lines.push(`    #${count(row.index)} paused=${yesNo(row.paused)} t=${count(row.t)}`
+                + ` ready=${count(row.ready)} network=${count(row.network)}`
+                + ` error=${count(row.error)}${row.errorText ? `(${text(row.errorText, '')})` : ''} source=${yesNo(row.source)}`);
+        }
+    } else {
+        lines.push(`  media: (none) online=${yesNo(page.online)}`);
+    }
+
+    // 播放器停在哪里、和哪些 Apple 主机说过话：段请求卡住与许可证被拒，从外面看是一样的。
+    const states = Array.isArray(page.states) ? page.states as Array<Record<string, unknown>> : [];
+    if (states.length) {
+        lines.push(`  player states: ${states.map(state => `${count(state.state)}${state.playing === true ? '*' : ''}`).join(' ')}`);
+    }
+    const hosts = asRecord(page.hosts);
+    const hostRows = hosts ? Object.entries(hosts).map(([host, value]) => ({
+        host,
+        count: count(asRecord(value)?.count),
+        maxMs: count(asRecord(value)?.maxMs),
+    })).sort((left, right) => Number(right.count) - Number(left.count)).slice(0, 10) : [];
+    lines.push(`  hosts: ${hostRows.length ? hostRows.map(row => `${row.host}=${row.count}/${row.maxMs}ms`).join(' ') : '(none)'}`);
+
+    // 加密媒体从不自己说“被拒了”还是“根本没问”：这串记录 CDM 的每一步。
+    const eme = Array.isArray(page.eme) ? page.eme as Array<Record<string, unknown>> : [];
+    if (eme.length) {
+        lines.push(`  eme: ${eme.map(entry => {
+            const step = text(entry.step, '?');
+            if (step === 'access') return `access:${text(entry.system, '?')}${entry.ok === false ? `!${text(entry.error, '')}` : '=ok'}`;
+            if (step === 'keys') return entry.ok === false ? `keys!${text(entry.error, '')}` : 'keys=ok';
+            if (step === 'message') return `msg:${count(entry.bytes)}B`;
+            if (step === 'update') return `update:${count(entry.bytes)}B`;
+            return step;
+        }).join(' ')}`);
+        // 请求了什么、实际批了什么：Apple 要的 robustness 与 WebView 能给的是不是同一个。
+        const granted = eme.filter(entry => entry.step === 'access' && entry.ok !== false).map(entry => (
+            `cfg=${text(entry.configurations, '(none)')} granted=${text(entry.granted, '(none)')}`
+        ));
+        if (granted.length) lines.push(`  eme config: ${granted[0]}`);
+    } else {
+        lines.push('  eme: (none)');
+    }
+
+    const mediaLog = Array.isArray(page.mediaLog) ? page.mediaLog as Array<Record<string, unknown>> : [];
+    if (mediaLog.length) {
+        lines.push('  media log (tail):');
+        for (const event of mediaLog.slice(-10)) {
+            lines.push(`    #${count(event.index)} ${text(event.type, '?')} t=${count(event.t)}`
+                + ` ready=${count(event.ready)} network=${count(event.network)}`
+                + `${typeof event.error === 'number' ? ` error=${event.error}` : ''}`);
+        }
+    }
+
+    const consoleLines = bridge.console;
+    if (Array.isArray(consoleLines) && consoleLines.length) {
+        lines.push('  page log (tail):');
+        for (const line of consoleLines.slice(-12)) {
+            lines.push(`    ${String(line).slice(0, 240)}`);
+        }
+    } else {
+        lines.push('  page log (tail): (none)');
+    }
+    return lines;
+};

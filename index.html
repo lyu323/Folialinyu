@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="description" content="Folia 定制版 · 全屏动态歌词播放器" />
+    <meta name="theme-color" content="#141033" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Folia 定制版" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <title>Folia 定制版</title>
+    <script>
+      // v4：首帧就决定启动动画样式与主题，避免 CSS 二次重算时闪一下。
+      (function () {
+        try {
+          document.documentElement.setAttribute('data-folia-v6', 'on');
+          var style = localStorage.getItem('folia_custom_splash_style');
+          document.documentElement.setAttribute('data-folia-splash', style === 'crystal' ? 'crystal' : style === 'liquid' ? 'liquid' : 'nebula');
+          var theme = localStorage.getItem('folia_custom_theme');
+          if (theme) document.documentElement.setAttribute('data-folia-theme', theme);
+        } catch (e) { /* 隐私模式：用默认液态玻璃 */ }
+      })();
+    </script>
+    <script src="/runtime-config.js"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
+    "pixi.js": "https://esm.sh/pixi.js@8.21.0",
+    "pixi": "https://esm.sh/pixi.js@8.21.0",
+    "three": "https://esm.sh/three@0.185.1",
+    "three/": "https://esm.sh/three@0.185.1/",
+    "opencc-js": "https://esm.sh/opencc-js@1.4.2",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-i18next": "https://aistudiocdn.com/react-i18next@^16.3.5",
+    "i18next": "https://aistudiocdn.com/i18next@^25.6.3"
+  }
+}
+</script>
+    <!-- 首屏加载遮罩：内联样式，随 HTML 首帧一起绘制，不等 index.css 与 JS bundle。
+         由 src/utils/appSplash.ts 在 React 挂载后淡出并移除。 -->
+    <style>
+      html, body { background-color: #141033; }
+      #app-splash {
+        position: fixed; inset: 0; z-index: 2147483000; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans CJK SC', sans-serif;
+        transition: opacity 320ms ease;
+        background:
+          radial-gradient(80% 55% at 50% 30%, rgba(124, 96, 236, .30), transparent 72%),
+          radial-gradient(55% 42% at 8% 88%, rgba(72, 206, 200, .16), transparent 76%),
+          linear-gradient(165deg, #2b1f68 0%, #141033 54%, #0a071e 100%);
+      }
+      #app-splash.is-hiding { opacity: 0; pointer-events: none; }
+      #folia-splash-stars { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+      #app-splash .app-splash-inner {
+        position: relative; z-index: 2;
+        display: flex; flex-direction: column; align-items: center; gap: 22px;
+        opacity: 0; animation: fs-in 520ms ease 110ms forwards;
+      }
+      @keyframes fs-in { to { opacity: 1; } }
+
+      /* ===== 共享：流动背景光斑 ===== */
+      .fs-aurora { position: absolute; inset: -12%; z-index: 0; pointer-events: none; opacity: .66; }
+      .fs-aurora i {
+        position: absolute; display: block; border-radius: 50%;
+        background: radial-gradient(circle at 35% 35%, rgba(255,255,255,.30), transparent 62%);
+        -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 70%);
+        mask-image: radial-gradient(circle at 50% 50%, #000 0%, transparent 70%);
+        contain: layout paint style;
+      }
+      .fs-aurora i:nth-child(1) { width: 46%; height: 38%; left: 4%;  top: 8%;  background-color: #7c5cec; animation: fs-drift-a 15s ease-in-out infinite alternate; }
+      .fs-aurora i:nth-child(2) { width: 42%; height: 44%; right: 2%; top: 14%; background-color: #3fb6b0; animation: fs-drift-b 19s ease-in-out infinite alternate; }
+      .fs-aurora i:nth-child(3) { width: 38%; height: 34%; left: 28%; bottom: 2%; background-color: #d06aa8; animation: fs-drift-c 22s ease-in-out infinite alternate; }
+      @keyframes fs-drift-a { from { transform: translate3d(-6%, -4%, 0) scale(.9); } to { transform: translate3d(22%, 14%, 0) scale(1.18); } }
+      @keyframes fs-drift-b { from { transform: translate3d(8%, 2%, 0) scale(1.1); } to { transform: translate3d(-16%, 20%, 0) scale(.86); } }
+      @keyframes fs-drift-c { from { transform: translate3d(-10%, 8%, 0) scale(.95); } to { transform: translate3d(18%, -16%, 0) scale(1.2); } }
+
+      /* ===== 液态玻璃启动动画（v4 默认） ===== */
+      .fs-liquid { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+      html[data-folia-splash='crystal'] .fs-liquid { display: none; }
+      .fs-glass-stage { position: relative; width: 176px; height: 176px; display: grid; place-items: center; }
+      .fs-blob {
+        position: absolute; width: 118px; height: 118px;
+        border-radius: 42% 58% 62% 38% / 46% 42% 58% 54%;
+        background: linear-gradient(145deg, rgba(255,255,255,.26), rgba(255,255,255,.05) 46%, rgba(150,120,255,.12));
+        border: 1px solid rgba(255,255,255,.42);
+        box-shadow:
+          inset 0 2px 12px rgba(255,255,255,.42),
+          inset 0 -14px 26px rgba(110,80,220,.24),
+          0 18px 46px rgba(12,8,40,.48),
+          0 0 30px rgba(167,139,250,.28);
+        -webkit-backdrop-filter: blur(22px) saturate(190%);
+        backdrop-filter: blur(22px) saturate(190%);
+        animation: fs-morph 7s ease-in-out infinite, fs-bob 5s ease-in-out infinite;
+      }
+      @keyframes fs-morph {
+        0%,100% { border-radius: 42% 58% 62% 38% / 46% 42% 58% 54%; transform: rotate(0deg); }
+        33%     { border-radius: 62% 38% 44% 56% / 38% 62% 38% 62%; transform: rotate(120deg); }
+        66%     { border-radius: 36% 64% 58% 42% / 62% 36% 64% 38%; transform: rotate(240deg); }
+      }
+      @keyframes fs-bob { 0%,100% { translate: 0 -4px; } 50% { translate: 0 6px; } }
+      .fs-blob::before {
+        content: ''; position: absolute; inset: 0; border-radius: inherit;
+        background: linear-gradient(120deg, transparent 24%, rgba(255,255,255,.52) 46%, transparent 64%);
+        background-size: 280% 100%;
+        animation: fs-sheen 3.6s linear infinite;
+        mix-blend-mode: screen;
+      }
+      @keyframes fs-sheen { from { background-position: 180% 0; } to { background-position: -80% 0; } }
+      .fs-blob::after {
+        content: ''; position: absolute; left: 20%; top: 12%; width: 34%; height: 20%;
+        border-radius: 50%; background: rgba(255,255,255,.62); filter: blur(7px);
+      }
+      .fs-drop {
+        position: absolute; border-radius: 50%;
+        background: linear-gradient(150deg, rgba(255,255,255,.34), rgba(140,110,240,.16));
+        border: 1px solid rgba(255,255,255,.36);
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+        box-shadow: inset 0 1px 5px rgba(255,255,255,.5), 0 8px 20px rgba(10,6,34,.36);
+      }
+      .fs-drop--1 { width: 30px; height: 30px; left: 4px;  top: 30px;  animation: fs-drop-1 6.5s ease-in-out infinite; }
+      .fs-drop--2 { width: 20px; height: 20px; right: 0;  top: 96px;  animation: fs-drop-2 8s ease-in-out infinite; }
+      .fs-drop--3 { width: 14px; height: 14px; left: 40px; bottom: 2px; animation: fs-drop-3 5.5s ease-in-out infinite; }
+      @keyframes fs-drop-1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(16px,12px) scale(1.16); } }
+      @keyframes fs-drop-2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-14px,-18px) scale(.86); } }
+      @keyframes fs-drop-3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(10px,-14px) scale(1.2); } }
+      .fs-refract {
+        position: absolute; inset: 12px; border-radius: 50%;
+        border: 1px solid rgba(255,255,255,.16);
+        box-shadow: 0 0 0 12px rgba(255,255,255,.035), 0 0 0 26px rgba(255,255,255,.02);
+        animation: fs-spin-slow 18s linear infinite;
+      }
+      @keyframes fs-spin-slow { to { transform: rotate(360deg); } }
+
+      /* ===== 3D 晶体启动动画（可选，保留 v3） ===== */
+      .fs-crystal { display: none; flex-direction: column; align-items: center; gap: 22px; }
+      html[data-folia-splash='crystal'] .fs-crystal { display: flex; }
+      .fs-stage {
+        position: relative; width: 168px; height: 168px;
+        perspective: 620px; transform-style: preserve-3d;
+      }
+      .fs-cube {
+        position: absolute; left: 44px; top: 44px; width: 80px; height: 80px;
+        transform-style: preserve-3d; animation: fs-spin 8s linear infinite;
+      }
+      @keyframes fs-spin { from { transform: rotateX(-22deg) rotateY(0deg); } to { transform: rotateX(-22deg) rotateY(360deg); } }
+      .fs-face {
+        position: absolute; inset: 0; border-radius: 9px;
+        border: 1px solid rgba(205,188,255,.46);
+        background: linear-gradient(145deg, rgba(167,139,250,.42), rgba(70,52,150,.14));
+        box-shadow: inset 0 0 24px rgba(167,139,250,.28), 0 0 18px rgba(120,92,230,.18);
+      }
+      .fs-face--front  { transform: translateZ(40px); background: linear-gradient(145deg, rgba(190,170,255,.62), rgba(90,70,190,.30)); }
+      .fs-face--back   { transform: rotateY(180deg) translateZ(40px); }
+      .fs-face--right  { transform: rotateY(90deg) translateZ(40px); background: linear-gradient(145deg, rgba(127,231,213,.46), rgba(50,110,140,.22)); }
+      .fs-face--left   { transform: rotateY(-90deg) translateZ(40px); }
+      .fs-face--top    { transform: rotateX(90deg) translateZ(40px); background: linear-gradient(145deg, rgba(255,214,160,.42), rgba(150,90,180,.20)); }
+      .fs-face--bottom { transform: rotateX(-90deg) translateZ(40px); }
+      .fs-glyph { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 34px;
+        text-shadow: 0 0 16px rgba(255,255,255,.9), 0 0 30px rgba(167,139,250,.9); }
+      .fs-ring { position: absolute; left: 9px; top: 9px; width: 150px; height: 150px;
+        border: 1px solid rgba(167,139,250,.38); border-radius: 50%; }
+      .fs-ring--a { animation: fs-ring-a 7s linear infinite; }
+      .fs-ring--b { border-color: rgba(127,231,213,.34); animation: fs-ring-b 9s linear infinite; }
+      .fs-ring--c { border-color: rgba(255,205,150,.22); animation: fs-ring-c 11s linear infinite; }
+      @keyframes fs-ring-a { from { transform: rotateX(68deg) rotateZ(0); } to { transform: rotateX(68deg) rotateZ(360deg); } }
+      @keyframes fs-ring-b { from { transform: rotateX(24deg) rotateY(62deg) rotateZ(0); } to { transform: rotateX(24deg) rotateY(62deg) rotateZ(360deg); } }
+      @keyframes fs-ring-c { from { transform: rotateX(-58deg) rotateY(28deg) rotateZ(360deg); } to { transform: rotateX(-58deg) rotateY(28deg) rotateZ(0); } }
+      .fs-core { position: absolute; left: 71px; top: 71px; width: 26px; height: 26px; border-radius: 50%;
+        background: radial-gradient(circle, #fff 0%, #c9b8ff 40%, rgba(167,139,250,0) 72%);
+        filter: blur(1px); animation: fs-pulse 2.4s ease-in-out infinite; }
+      @keyframes fs-pulse { 0%,100% { opacity:.65; transform:scale(.85); } 50% { opacity:1; transform:scale(1.18); } }
+
+      /* ===== 共享品牌区 ===== */
+      .fs-brand { text-align: center; }
+      .fs-title {
+        color: #f4f0ff; font-size: 25px; font-weight: 700; letter-spacing: .04em;
+        animation: fs-reveal 900ms cubic-bezier(.2,.8,.2,1) 180ms both;
+      }
+      @keyframes fs-reveal { from { letter-spacing: .34em; opacity: 0; filter: blur(6px); } to { letter-spacing: .04em; opacity: 1; filter: blur(0); } }
+      .fs-title span {
+        background: linear-gradient(92deg, #c9b8ff, #7fe7d5, #ffd08a);
+        background-size: 220% 100%;
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        animation: fs-hue 6s linear infinite;
+      }
+      @keyframes fs-hue { to { background-position: 220% 0; } }
+      .fs-sub { margin-top: 7px; color: rgba(214,206,244,.66); font-size: 11px; letter-spacing: .22em; }
+      .fs-progress { width: 172px; height: 4px; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,.12); }
+      .fs-progress i {
+        display: block; width: 46%; height: 100%; border-radius: 99px;
+        background: linear-gradient(90deg, transparent, #c9b8ff, #7fe7d5, #ffd08a, transparent);
+        animation: fs-bar 1.5s ease-in-out infinite;
+      }
+      @keyframes fs-bar { from { transform: translateX(-110%); } to { transform: translateX(320%); } }
+      .fs-status { color: rgba(210,202,240,.68); font-size: 12px; letter-spacing: .06em; }
+      .fs-version { color: rgba(190,182,224,.40); font-size: 10px; letter-spacing: .10em; }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .app-splash-inner { opacity: 1; animation: none; }
+        .fs-aurora i, .fs-blob, .fs-blob::before, .fs-drop, .fs-refract,
+        .fs-cube, .fs-ring, .fs-core, .fs-progress i, .fs-title, .fs-title span { animation: none; }
+        .fs-n-halo, .fs-n-disc, .fs-n-core, .fs-n-core::before, .fs-n-core::after, .fs-n-glyph, .fs-n-orbit, .fs-n-meteor, .fs-n-progress i, .fs-n-progress::after, .fs-n-title .fs-n-char { animation: none; }
+        .fs-n-title .fs-n-char { opacity: 1; transform: none; filter: none; }
+      }
+
+      /* v5：跳过启动动画时首帧就不绘制，不等 JS */
+      html[data-folia-skip-splash='true'] #app-splash { display: none !important; }
+      /* ═══════════ v6 星云启动页（默认；液态玻璃 / 3D 晶体仍可切回）═══════════ */
+      .fs-nebula { display: none; flex-direction: column; align-items: center; gap: 20px; }
+      html[data-folia-splash='nebula'] .fs-nebula { display: flex; }
+      html[data-folia-splash='nebula'] .fs-liquid,
+      html[data-folia-splash='nebula'] .fs-crystal { display: none !important; }
+
+      .fs-n-stage { position: relative; width: 220px; height: 220px; display: grid; place-items: center; }
+      .fs-n-halo {
+        position: absolute; inset: 6%; border-radius: 50%;
+        background: radial-gradient(circle at 50% 50%,
+          rgba(150, 120, 255, .34) 0%, rgba(96, 80, 210, .16) 34%,
+          rgba(56, 190, 190, .10) 58%, transparent 74%);
+        animation: fs-n-breathe 3.6s ease-in-out infinite;
+      }
+      @keyframes fs-n-breathe {
+        0%, 100% { opacity: .62; transform: scale(.92); }
+        50%      { opacity: 1;   transform: scale(1.08); }
+      }
+      /* 星云环带：conic 渐变旋转，纯合成器动画 */
+      .fs-n-disc {
+        position: absolute; inset: 18%; border-radius: 50%;
+        background: conic-gradient(from 0deg,
+          rgba(126, 96, 244, .05), rgba(174, 132, 255, .48), rgba(96, 224, 214, .38),
+          rgba(126, 96, 244, .06), rgba(255, 176, 214, .40), rgba(126, 96, 244, .05));
+        -webkit-mask: radial-gradient(circle, transparent 52%, #000 58%, #000 70%, transparent 76%);
+        mask: radial-gradient(circle, transparent 52%, #000 58%, #000 70%, transparent 76%);
+        animation: fs-n-spin 9s linear infinite;
+        filter: saturate(140%);
+      }
+      @keyframes fs-n-spin { to { transform: rotate(360deg); } }
+
+      /* 折射玻璃核：静态渐变 + 细网格，不用 blur */
+      .fs-n-core {
+        position: relative; width: 108px; height: 108px; border-radius: 50%;
+        background:
+          radial-gradient(circle at 32% 26%, rgba(255, 255, 255, .58), transparent 42%),
+          radial-gradient(circle at 72% 78%, rgba(120, 232, 222, .42), transparent 48%),
+          linear-gradient(145deg, rgba(158, 128, 255, .52), rgba(44, 34, 96, .72));
+        border: 1px solid rgba(255, 255, 255, .34);
+        box-shadow:
+          inset 0 1px 14px rgba(255, 255, 255, .26),
+          inset 0 -10px 24px rgba(20, 12, 60, .46),
+          0 0 38px rgba(132, 100, 248, .38),
+          0 0 78px rgba(80, 200, 200, .18);
+        overflow: hidden;
+        animation: fs-n-core-in 900ms cubic-bezier(.18, .9, .24, 1) both;
+      }
+      @keyframes fs-n-core-in {
+        from { opacity: 0; transform: scale(.62) rotate(-24deg); }
+        to   { opacity: 1; transform: none; }
+      }
+      .fs-n-core::before {
+        content: ''; position: absolute; inset: 0;
+        background: repeating-linear-gradient(118deg, rgba(255, 255, 255, .09) 0 1px, transparent 1px 9px);
+        opacity: .55;
+        animation: fs-n-refract 7s ease-in-out infinite alternate;
+      }
+      @keyframes fs-n-refract { to { transform: translate3d(-8px, 5px, 0); } }
+      .fs-n-core::after {
+        content: ''; position: absolute; left: -60%; top: -60%; width: 60%; height: 220%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .46), transparent);
+        transform: rotate(28deg);
+        animation: fs-n-sheen 2.9s ease-in-out infinite;
+      }
+      @keyframes fs-n-sheen {
+        0%   { transform: translate3d(-120%, 0, 0) rotate(28deg); }
+        60%, 100% { transform: translate3d(360%, 0, 0) rotate(28deg); }
+      }
+      .fs-n-glyph {
+        position: absolute; inset: 0; display: grid; place-items: center;
+        color: rgba(255, 255, 255, .94); font-size: 30px; letter-spacing: -.04em;
+        text-shadow: 0 0 16px rgba(255, 255, 255, .55);
+        animation: fs-n-pulse 2.8s ease-in-out infinite;
+      }
+      @keyframes fs-n-pulse { 0%, 100% { opacity: .78; transform: scale(.94); } 50% { opacity: 1; transform: scale(1.06); } }
+
+      /* 三条倾斜轨道，各带一颗公转光点 */
+      .fs-n-orbit {
+        position: absolute; inset: 4%; border-radius: 50%;
+        border: 1px solid rgba(198, 182, 255, .26);
+        border-top-color: rgba(255, 255, 255, .62);
+      }
+      .fs-n-orbit::after {
+        content: ''; position: absolute; left: 50%; top: -3px; width: 6px; height: 6px;
+        margin-left: -3px; border-radius: 50%; background: #fff;
+        box-shadow: 0 0 12px 3px rgba(180, 220, 255, .9);
+      }
+      .fs-n-orbit--a { transform: rotateX(68deg) rotateZ(12deg); animation: fs-n-oa 6.5s linear infinite; }
+      .fs-n-orbit--b { transform: rotateX(24deg) rotateY(58deg); border-color: rgba(127, 231, 213, .24); border-top-color: rgba(160, 255, 240, .58); animation: fs-n-ob 9s linear infinite; }
+      .fs-n-orbit--c { transform: rotateX(-56deg) rotateY(26deg); border-color: rgba(255, 196, 168, .20); border-top-color: rgba(255, 214, 180, .52); animation: fs-n-oc 12s linear infinite reverse; }
+      @keyframes fs-n-oa { to { transform: rotateX(68deg) rotateZ(372deg); } }
+      @keyframes fs-n-ob { to { transform: rotateX(24deg) rotateY(58deg) rotateZ(360deg); } }
+      @keyframes fs-n-oc { to { transform: rotateX(-56deg) rotateY(26deg) rotateZ(360deg); } }
+
+      /* 流星拖尾：3 条，只用 transform */
+      .fs-n-meteor {
+        position: absolute; left: 0; top: 0; width: 90px; height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(226, 216, 255, .9), transparent);
+        transform: rotate(-32deg) translate3d(-260px, -160px, 0);
+        opacity: 0;
+      }
+      .fs-n-meteor--1 { animation: fs-n-fly 3.4s ease-in 0.4s infinite; }
+      .fs-n-meteor--2 { animation: fs-n-fly 4.6s ease-in 1.7s infinite; top: 54%; }
+      .fs-n-meteor--3 { animation: fs-n-fly 5.8s ease-in 3.1s infinite; top: 78%; }
+      @keyframes fs-n-fly {
+        0%   { opacity: 0; transform: rotate(-32deg) translate3d(-260px, -180px, 0); }
+        12%  { opacity: 1; }
+        72%  { opacity: .9; }
+        100% { opacity: 0; transform: rotate(-32deg) translate3d(520px, 340px, 0); }
+      }
+
+      /* 逐字浮现的标题 */
+      .fs-n-title { display: flex; gap: 1px; font-size: 27px; font-weight: 600; letter-spacing: .04em; color: #f6f2ff; }
+      .fs-n-title .fs-n-char { display: inline-block; opacity: 0; transform: translate3d(0, 12px, 0); filter: blur(5px);
+        animation: fs-n-char 620ms cubic-bezier(.2, .85, .25, 1) forwards; }
+      .fs-n-title .fs-n-char:nth-child(1)  { animation-delay: 120ms; }
+      .fs-n-title .fs-n-char:nth-child(2)  { animation-delay: 175ms; }
+      .fs-n-title .fs-n-char:nth-child(3)  { animation-delay: 230ms; }
+      .fs-n-title .fs-n-char:nth-child(4)  { animation-delay: 285ms; }
+      .fs-n-title .fs-n-char:nth-child(5)  { animation-delay: 340ms; }
+      .fs-n-title .fs-n-char:nth-child(6) { animation-delay: 395ms; }
+      .fs-n-title .fs-n-char:nth-child(7) { color: #cdb8ff; animation-delay: 450ms; }
+      .fs-n-title .fs-n-char:nth-child(8) { color: #cdb8ff; animation-delay: 505ms; }
+      .fs-n-title .fs-n-char:nth-child(9) { color: #cdb8ff; animation-delay: 560ms; }
+      @keyframes fs-n-char { to { opacity: 1; transform: none; filter: blur(0); } }
+      .fs-n-sub { margin-top: 8px; color: rgba(214, 206, 244, .70); font-size: 10px; letter-spacing: .30em;
+        animation: fs-n-fade 900ms ease 520ms both; }
+      @keyframes fs-n-fade { from { opacity: 0; } to { opacity: 1; } }
+
+      .fs-n-progress { position: relative; width: 190px; height: 3px; border-radius: 99px; background: rgba(255, 255, 255, .10); overflow: visible; }
+      .fs-n-progress i {
+        position: absolute; inset: 0; border-radius: inherit;
+        background: linear-gradient(90deg, transparent, hsl(268 90% 76%), hsl(178 84% 70%), transparent);
+        background-size: 200% 100%;
+        animation: fs-n-bar 1.7s ease-in-out infinite;
+      }
+      .fs-n-progress::after {
+        content: ''; position: absolute; left: 0; top: -2px; width: 7px; height: 7px; border-radius: 50%;
+        background: #fff; box-shadow: 0 0 12px 3px rgba(190, 170, 255, .8);
+        animation: fs-n-dot 1.7s ease-in-out infinite;
+      }
+      @keyframes fs-n-bar { from { background-position: 180% 0; } to { background-position: -80% 0; } }
+      @keyframes fs-n-dot { 0% { left: 0; opacity: .4; } 50% { opacity: 1; } 100% { left: calc(100% - 7px); opacity: .4; } }
+      .fs-n-status { color: rgba(214, 206, 244, .72); font-size: 11px; letter-spacing: .10em; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .fs-n-halo, .fs-n-disc, .fs-n-core, .fs-n-core::before, .fs-n-core::after,
+        .fs-n-glyph, .fs-n-orbit, .fs-n-meteor, .fs-n-title .fs-n-char,
+        .fs-n-progress i, .fs-n-progress::after { animation: none !important; }
+        .fs-n-title .fs-n-char { opacity: 1; transform: none; filter: none; }
+      }
+    </style>
+    </style>
+</head>
+  <body>
+    <div id="app-splash" role="status" aria-live="polite" aria-label="Loading Folia 定制版">
+      <div class="fs-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+      <canvas id="folia-splash-stars" aria-hidden="true"></canvas>
+      <div class="app-splash-inner">
+
+        <!-- 液态玻璃启动动画（v4 默认） -->
+        <div class="fs-liquid">
+          <div class="fs-glass-stage" aria-hidden="true">
+            <div class="fs-refract"></div>
+            <div class="fs-blob"></div>
+            <div class="fs-drop fs-drop--1"></div>
+            <div class="fs-drop fs-drop--2"></div>
+            <div class="fs-drop fs-drop--3"></div>
+          </div>
+          <div class="fs-brand">
+            <div class="fs-title">Folia <span>定制版</span></div>
+            <div class="fs-sub">LIQUID GLASS &#183; LYRICS REIMAGINED</div>
+          </div>
+          <div class="fs-progress"><i></i></div>
+          <div class="fs-status">正在融化玻璃与光…</div>
+          <div class="fs-version">v0.7.29-custom.6</div>
+        </div>
+
+        <!-- 3D 晶体启动动画（可在快捷设置里切回） -->
+      <div class="fs-nebula">
+        <div class="fs-n-stage" aria-hidden="true">
+          <div class="fs-n-halo"></div>
+          <div class="fs-n-disc"></div>
+          <div class="fs-n-orbit fs-n-orbit--a"></div>
+          <div class="fs-n-orbit fs-n-orbit--b"></div>
+          <div class="fs-n-orbit fs-n-orbit--c"></div>
+          <div class="fs-n-core"><div class="fs-n-glyph">&#10022;</div></div>
+          <div class="fs-n-meteor fs-n-meteor--1"></div>
+          <div class="fs-n-meteor fs-n-meteor--2"></div>
+          <div class="fs-n-meteor fs-n-meteor--3"></div>
+        </div>
+        <div class="fs-n-title" aria-label="Folia 定制版">
+          <span class="fs-n-char">F</span><span class="fs-n-char">o</span><span class="fs-n-char">l</span><span class="fs-n-char">i</span><span class="fs-n-char">a</span>
+          <span class="fs-n-char">&nbsp;</span><span class="fs-n-char">定</span><span class="fs-n-char">制</span><span class="fs-n-char">版</span>
+        </div>
+        <div class="fs-n-sub">NEBULA &#183; LYRICS REIMAGINED</div>
+        <div class="fs-n-progress"><i></i></div>
+        <div class="fs-n-status">正在点亮星云…</div>
+        <div class="fs-version">v0.7.29-custom.6</div>
+      </div>
+        <div class="fs-crystal">
+          <div class="fs-stage" aria-hidden="true">
+            <div class="fs-ring fs-ring--a"></div>
+            <div class="fs-ring fs-ring--b"></div>
+            <div class="fs-ring fs-ring--c"></div>
+            <div class="fs-cube">
+              <div class="fs-face fs-face--front"><div class="fs-glyph">&#10022;</div></div>
+              <div class="fs-face fs-face--back"></div>
+              <div class="fs-face fs-face--right"></div>
+              <div class="fs-face fs-face--left"></div>
+              <div class="fs-face fs-face--top"></div>
+              <div class="fs-face fs-face--bottom"></div>
+            </div>
+            <div class="fs-core"></div>
+          </div>
+          <div class="fs-brand">
+            <div class="fs-title">Folia <span>定制版</span></div>
+            <div class="fs-sub">LYRICS REIMAGINED &#183; 3D</div>
+          </div>
+          <div class="fs-progress"><i></i></div>
+          <div class="fs-status">正在准备歌词舞台…</div>
+          <div class="fs-version">v0.7.29-custom.6</div>
+        </div>
+
+      </div>
+    </div>
+    <script>
+      (function () {
+        // v5：跳过启动动画 —— 首帧直接摘掉，不等 React 挂载、不等最短展示时长。
+        try {
+          if (localStorage.getItem('folia_custom_skip_splash') === '1') {
+            document.documentElement.setAttribute('data-folia-skip-splash', 'true');
+            var sSkip = document.getElementById('app-splash');
+            if (sSkip) sSkip.remove();
+            return;
+          }
+        } catch (e) { /* 隐私模式：正常播放动画 */ }
+
+        try {
+          // 透明背景入口（OBS 源 / 壁纸窗口）不盖启动层。
+          var params = new URLSearchParams(window.location.search);
+          if (params.get('obs') === '1' || window.location.pathname === '/obs' || params.get('splash') === '0') {
+            var s0 = document.getElementById('app-splash');
+            if (s0) s0.remove();
+            return;
+          }
+        } catch (error) { /* 保留启动层，React 挂载后仍会移除 */ }
+
+        // 星尘粒子：轻量 canvas，遮罩移除后自动停帧，不占主界面资源。
+        var canvas = document.getElementById('folia-splash-stars');
+        var ctx = canvas && canvas.getContext ? canvas.getContext('2d') : null;
+        if (ctx) {
+          var w = 0, h = 0, stars = [], dpr = Math.min(window.devicePixelRatio || 1, 2);
+          function resize() {
+            w = window.innerWidth; h = window.innerHeight;
+            canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            stars = [];
+            var isNeb = document.documentElement.getAttribute('data-folia-splash') === 'nebula';
+            var count = Math.min(isNeb ? 96 : 64, Math.round(w * h / (isNeb ? 10000 : 14000)));
+            for (var i = 0; i < count; i++) {
+              stars.push({
+                x: Math.random() * w, y: Math.random() * h,
+                r: Math.random() * 1.5 + 0.4,
+                a: Math.random() * 0.55 + 0.15,
+                vy: -(Math.random() * 0.22 + 0.05),
+                tw: Math.random() * Math.PI * 2
+              });
+            }
+          }
+          var last = 0;
+          function frame(ts) {
+            if (!document.getElementById('app-splash')) return;
+            window.requestAnimationFrame(frame);
+            // v5：星尘锁 30fps，页面隐藏时完全不绘制
+            if (document.hidden || ts - last < 33) return;
+            last = ts;
+            ctx.clearRect(0, 0, w, h);
+            for (var i = 0; i < stars.length; i++) {
+              var s = stars[i];
+              s.y += s.vy; s.tw += 0.02;
+              if (s.y < -4) { s.y = h + 4; s.x = Math.random() * w; }
+              var alpha = s.a * (0.65 + 0.35 * Math.sin(s.tw));
+              ctx.beginPath();
+              ctx.fillStyle = 'rgba(214,202,255,' + alpha.toFixed(3) + ')';
+              ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          resize();
+          window.addEventListener('resize', resize);
+          window.requestAnimationFrame(frame);
+        }
+      })();
+
+      // 12 秒兜底：模块包 / React 一直没挂上时给出可点按的重试，而不是空白页。
+      window.setTimeout(function () {
+        var splash = document.getElementById('app-splash');
+        if (!splash) return;
+        splash.innerHTML =
+          '<div style="display:flex;flex-direction:column;align-items:center;gap:14px;' +
+          'color:#f2efff;font:14px/1.6 system-ui,sans-serif;text-align:center;padding:24px">' +
+          '<div style="font-size:18px;font-weight:600">启动超时</div>' +
+          '<div style="opacity:.72">点按重新加载 / Tap to reload</div></div>';
+        splash.style.cursor = 'pointer';
+        splash.addEventListener('click', function () { window.location.reload(); });
+      }, 12000);
+    </script>
+
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>

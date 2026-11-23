@@ -1,0 +1,99 @@
+# GitCode / AtomGit CI 流水线（GitLab 风格）
+# push 到 main 自动编译 Release APK；成功后回推到仓库 apk/ 目录，并保留 artifacts 保底。
+# 可选：在「设置 → CI/CD → 变量」加 GITCODE_TOKEN（仓库写权限 PAT），用于自动回推 APK。
+# 若项目默认是 fork/镜像，请到「CI/CD → 流水线」点一次「启用」。
+
+stages:
+  - build
+
+variables:
+  ANDROID_HOME: /opt/android-sdk
+  ANDROID_SDK_ROOT: /opt/android-sdk
+  GRADLE_USER_HOME: $CI_PROJECT_DIR/.gradle
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
+  JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
+  NODE_VER: "24.21.0"
+  NDK_VER: "28.2.13676358"
+  CMAKE_VER: "3.22.1"
+
+build-apk:
+  stage: build
+  image: ubuntu:24.04
+  timeout: 2h
+  cache:
+    key: folia-v5-cache
+    paths:
+      - .gradle/
+      - .npm/
+  before_script:
+    - export DEBIAN_FRONTEND=noninteractive
+    - apt-get update -qq
+    - apt-get install -y -qq openjdk-21-jdk-headless curl unzip zip git ca-certificates xz-utils python3
+    - java -version
+    # Node 24（国内镜像直取，避免 nodejs.org / npmjs.org 不通）
+    - curl -fsSL "https://mirrors.cloud.tencent.com/nodejs-release/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz" -o /tmp/node.tar.xz
+    - mkdir -p /opt/node && tar -xJf /tmp/node.tar.xz -C /opt/node --strip-components=1
+    - export PATH=/opt/node/bin:$PATH
+    - node -v && npm -v
+    - npm config set registry https://mirrors.cloud.tencent.com/npm/
+    # Android commandline-tools：多源尝试
+    - mkdir -p "$ANDROID_HOME/cmdline-tools"
+    - |
+      TOOLS_ZIP=/tmp/cmdline-tools.zip
+      for U in \
+        "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+        "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-11076708_latest.zip" \
+        "https://mirrors.tuna.tsinghua.edu.cn/AndroidSDK/commandlinetools-linux-11076708_latest.zip" ; do
+        echo "尝试 Android cmdline-tools: $U"
+        if curl -fsSL --max-time 300 "$U" -o "$TOOLS_ZIP"; then echo "OK $U"; break; fi
+      done
+      if [ ! -s "$TOOLS_ZIP" ]; then
+        echo "❌ Android cmdline-tools 下载失败：当前 runner 访问不到 SDK 源。"
+        echo "   请改用本机一键出包脚本，或把工程 push 到 GitHub 用 Actions 编译。"
+        exit 1
+      fi
+      unzip -q "$TOOLS_ZIP" -d "$ANDROID_HOME/cmdline-tools"
+      mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" || true
+    - export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+    - yes | sdkmanager --licenses >/dev/null 2>&1 || true
+    - sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;${NDK_VER}" "cmake;${CMAKE_VER}"
+  script:
+    - export PATH=/opt/node/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+    - npm ci --no-audit --no-fund
+    - npm run build:capacitor
+    - npx cap sync android
+    - cd android
+    - chmod +x gradlew
+    - keytool -genkeypair -v -keystore app/folia-custom.keystore -alias folia-custom -keyalg RSA -keysize 2048 -validity 10000 -storepass folia2026 -keypass folia2026 -dname "CN=Folia Custom, OU=Personal, O=Personal, L=NA, S=NA, C=CN"
+    - |
+      printf 'storeFile=folia-custom.keystore\nstorePassword=folia2026\nkeyAlias=folia-custom\nkeyPassword=folia2026\n' > keystore.properties
+    - ./gradlew assembleRelease --no-daemon --stacktrace
+    - cd ..
+    - mkdir -p 输出APK apk
+    - cp android/app/build/outputs/apk/release/*.apk 输出APK/Folia定制版-v5.apk
+    - cp android/app/build/outputs/apk/release/*.apk apk/Folia定制版-v5.apk
+    - ls -lh apk/
+    # 有 GITCODE_TOKEN 变量就自动回推；没有也没关系，artifacts 仍可下载
+    - |
+      if [ -n "$GITCODE_TOKEN" ]; then
+        git config user.name "folia-build-bot"
+        git config user.email "folia-build-bot@localhost"
+        git add apk/Folia定制版-v5.apk
+        if ! git diff --cached --quiet; then
+          git commit -m "chore: 自动回推编译产物 [skip ci]"
+          git push "https://${CI_PROJECT_NAMESPACE}:${GITCODE_TOKEN}@gitcode.com/${CI_PROJECT_PATH}.git" HEAD:${CI_DEFAULT_BRANCH} || true
+        fi
+      else
+        echo "ℹ️  未设置 GITCODE_TOKEN：APK 请到本流水线页的 artifacts 下载"
+      fi
+  artifacts:
+    name: Folia-定制版-v5-APK
+    when: always
+    expire_in: 7 days
+    paths:
+      - 输出APK/
+      - apk/
+      - android/app/build/outputs/logs/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
