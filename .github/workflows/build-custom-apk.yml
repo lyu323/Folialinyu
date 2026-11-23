@@ -1,0 +1,152 @@
+name: 构建 Folia 定制版 APK
+
+# push 到 main 就自动编译；编好的 APK 会自动回推到仓库的 apk/ 目录。
+# 你只需要：push 一次 → 等约 20 分钟 → 跑 python 取回APK.py
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'apk/**'
+      - '输出APK/**'
+      - 'Folia定制版-v5.apk'
+  workflow_dispatch:
+    inputs:
+      note:
+        description: '本次构建备注（可留空）'
+        required: false
+        default: ''
+      fast:
+        description: '跳过启动引导（true/false）'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: folia-apk-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF-8
+      GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 展开完整工程（源码以单个压缩包推送，避免数千小文件）
+        run: |
+          unzip -q folia-project.zip
+          chmod +x android/gradlew
+          # GitHub runner 走官方源更快，避免国内镜像跨境
+          sed -i 's#https://mirrors.cloud.tencent.com/gradle/#https://services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties || true
+          ls -la | head -20
+
+      - name: 准备 Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: 准备 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: 准备 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 缓存 NDK / CMake
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/ndk
+            ${{ env.ANDROID_HOME }}/cmake
+          key: android-ndk-28.2.13676358-cmake-3.22.1-v1
+
+      - name: 安装 SDK / NDK / CMake
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager --install \
+            "platform-tools" "platforms;android-36" "build-tools;36.0.0" \
+            "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: 安装前端依赖
+        run: npm ci --no-audit --no-fund --registry=https://registry.npmjs.org/
+
+      - name: 构建 Web 资源
+        run: |
+          if [ "${{ github.event.inputs.fast }}" = "true" ]; then
+            npm run build:capacitor:fast
+          else
+            npm run build:capacitor
+          fi
+
+      - name: 同步 Capacitor 工程
+        run: npx cap sync android
+
+      - name: 生成发布签名
+        working-directory: android
+        run: |
+          keytool -genkeypair -v \
+            -keystore app/folia-custom.keystore \
+            -alias folia-custom -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass folia2026 -keypass folia2026 \
+            -dname "CN=Folia Custom, OU=Personal, O=Personal, L=NA, S=NA, C=CN"
+          cat > keystore.properties <<'EOF'
+          storeFile=folia-custom.keystore
+          storePassword=folia2026
+          keyAlias=folia-custom
+          keyPassword=folia2026
+          EOF
+
+      - name: 编译 Release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: 整理产物
+        run: |
+          mkdir -p 输出APK apk
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$APK" 输出APK/Folia定制版-v5.apk
+          cp "$APK" apk/Folia定制版-v5.apk
+          ls -lh apk/
+
+      - name: 上传 Artifact（保底）
+        uses: actions/upload-artifact@v4
+        with:
+          name: Folia-定制版-v5-APK
+          path: 输出APK/Folia定制版-v5.apk
+          if-no-files-found: error
+
+      - name: 把 APK 自动回推仓库
+        run: |
+          git config user.name "folia-build-bot"
+          git config user.email "folia-build-bot@users.noreply.github.com"
+          git add -f apk/Folia定制版-v5.apk
+          if git diff --cached --quiet; then
+            echo "APK 未变化，跳过回推"
+          else
+            git commit -m "chore: 自动回推编译产物 [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      - name: 失败时上传构建日志
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 构建日志
+          path: |
+            android/app/build/outputs/logs/
+            android/.gradle/
+          if-no-files-found: ignore
