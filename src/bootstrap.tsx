@@ -7,6 +7,8 @@ import './styles/androidPhoneFit.css';
 import './styles/foliaCustomUI.css';
 // v6：精致化 / 流畅度样式层（门控，关闭即回到 v5 原样）
 import './styles/foliaV6Refine.css';
+// v7：晨雾玻璃 UI / 主题化弹窗（门控，关闭即回到 v6 原样）
+import './styles/foliaV7Mist.css';
 import App from './App';
 import AppSplashGate from './components/AppSplashGate';
 import ChunkLoadBoundary from './components/app/ChunkLoadBoundary';

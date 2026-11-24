@@ -4,7 +4,7 @@
 // 所有动画走 transform/opacity；初始化按空闲分片；监听一律 passive。
 
 const PREFIX = 'folia_v6_';
-const VERSION = '0.7.29-custom.6';
+const VERSION = '0.7.29-custom.7';
 
 type Seg = { key: string; values: Array<[string, string]>; attr: string; fallback: string };
 
@@ -225,6 +225,8 @@ const toggleHtml = (t: { key: string; label: string; fallback: string }): string
 };
 
 const CHANGELOG = [
+  '<b>v7 · 晨雾玻璃</b>',
+  '· 按参考图重做空状态页、主题化弹窗、检测更新与更新日志',
   '<b>v6 · 星云纪元</b>',
   '· 启动页重做：星云玻璃核 + 三层轨道 + 逐字浮现 + 光轨星尘（三套可切）',
   '· 新增主题预设收藏夹，命名保存 / 一键切回整套外观',
@@ -238,7 +240,7 @@ const CHANGELOG = [
 const panelHtml = (): string => {
   const list = presets();
   return '<button class="f6-close" type="button" data-act="close" aria-label="关闭">×</button>' +
-    '<h3>✦ Folia v6 · 精致与流畅 <span id="f6-fps" style="float:right;font-size:10px;opacity:.6;font-weight:400">' + (fpsValue || '--') + ' FPS</span></h3>' +
+    '<h3>✦ Folia v7 · 精致与流畅 <span id="f6-fps" style="float:right;font-size:10px;opacity:.6;font-weight:400">' + (fpsValue || '--') + ' FPS</span></h3>' +
     SEGS.map(segHtml).join('') +
     TOGGLES.map(toggleHtml).join('') +
     '<div class="f6-row"><span class="f6-label">主题预设</span><span class="f6-seg">' +

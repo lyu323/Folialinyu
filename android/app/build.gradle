@@ -22,7 +22,7 @@ android {
         applicationId "top.folia.custom"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 536
+        versionCode 537
         versionName packageJson.version
         ndk {
             abiFilters 'arm64-v8a'

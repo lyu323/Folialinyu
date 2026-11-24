@@ -266,7 +266,7 @@ const syncAmbient = (): void => {
 };
 
 // ------------------------------------------------------------------ 空状态卡片化
-const EMPTY_HEAD = '还没有连接在线平台';
+const EMPTY_HEADS = ['还没有连接在线平台', '还没有导入本地音乐', '暂无本地音乐', '还没有导入'];
 const EMPTY_BODY_HINTS = ['歌单', '本地', '电台'];
 // v5：常驻 MutationObserver 在长列表滚动时会频繁回调，改成「命中即停」的轻量轮询。
 // 每 3 秒扫一次，找到空状态后停表；路由切换由 popstate / 点击标签栏重新唤醒。
@@ -282,7 +282,7 @@ const markEmptyStates = (): boolean => {
     const found = new Set<Element>();
     while ((node = walker.nextNode())) {
         const text = node.textContent?.trim() ?? '';
-        if (!text.includes(EMPTY_HEAD) || text.length > 120) continue;
+        if (!EMPTY_HEADS.some((h) => text.includes(h)) || text.length > 120) continue;
         let el = node.parentElement;
         for (let depth = 0; depth < 5 && el; depth += 1) {
             const own = (el.textContent ?? '').trim();
@@ -345,7 +345,7 @@ const splashMarkup = (style: SplashStyle): string => {
         '<div class="fs-sub">' + sub + '</div></div>' +
         '<div class="fs-progress"><i></i></div>' +
         '<div class="fs-status">' + status + '</div>' +
-        '<div class="fs-version">v0.7.29-custom.4 · 预览 3 秒</div>';
+        '<div class="fs-version">v0.7.29-custom.7 · 预览 3 秒</div>';
     if (style === 'crystal') {
         return '<div class="fs-crystal" style="display:flex">' +
             '<div class="fs-stage"><div class="fs-ring fs-ring--a"></div>' +
@@ -531,7 +531,7 @@ const downloadBlob = (name: string, text: string): void => {
 
 const exportBackup = (): void => {
     const payload = {
-        app: 'Folia 定制版', version: '0.7.29-custom.4',
+        app: 'Folia 定制版', version: '0.7.29-custom.7',
         package: 'top.folia.custom', exportedAt: new Date().toISOString(),
         settings: collectBackup(),
     };
@@ -572,7 +572,7 @@ const importBackup = (): void => {
 const copyDiagnostics = (): void => {
     const perf = readPerfStats();
     const info = [
-        'Folia 定制版 0.7.29-custom.4 (534)',
+        'Folia 定制版 0.7.29-custom.7 (537)',
         '包名: top.folia.custom',
         '主题: ' + THEME[readTheme()] + ' / 强调色: ' + String(readHue()),
         '液态动效: ' + LIQUID[readLiquid()] + ' / 启动动画: ' + SPLASH[readSplash()],
@@ -776,9 +776,9 @@ const renderMenu = (refs: Refs, onHide: () => void): void => {
     menu.appendChild(item('复制诊断信息', '版本 / 包名 / 主题 / UA', false, () => copyDiagnostics()));
 
     group(menu, '关于');
-    menu.appendChild(item('Folia 定制版 0.7.29-custom.4',
+    menu.appendChild(item('Folia 定制版 0.7.29-custom.7',
         'top.folia.custom · AGPL-3.0 · 仅供个人学习', false, () => {
-            window.alert('Folia 定制版 0.7.29-custom.4 (534)\n包名：top.folia.custom\n\n'
+            window.alert('Folia 定制版 0.7.29-custom.7 (537)\n包名：top.folia.custom\n\n'
                 + '上游：chthollyphile/folia-major（AGPL-3.0）\n'
                 + 'Android 移植：whycfawa/folia-android（AGPL-3.0）\n\n'
                 + '仅供个人学习与非营利测试；在线音乐版权归各平台所有。');

@@ -20,6 +20,8 @@ import { useDesktopSettingsStore } from './stores/useDesktopSettingsStore';
 import { installFoliaCustomEnhancements } from './services/foliaCustomEnhancements';
 // v6：精致设置 / 主题预设 / 自适应流畅度（不改 React 组件）
 import { installFoliaV6Features } from './services/foliaV6Features';
+// v7：晨雾 UI / 主题化弹窗 / 检测更新 / 更新日志
+import { installFoliaV7Features } from './services/foliaV7Features';
 // import { installCoverSizeAudit } from './services/debug/coverSizeSamples';
 // @ts-ignore
 globalThis.Buffer = Buffer;
@@ -66,6 +68,8 @@ installFnMusicAndroidBridge();
 installFoliaCustomEnhancements();
 // v6：紧随其后，React 挂载前完成门控与首屏耗时采样。
 installFoliaV6Features();
+// v7：在 v5/v6 之后安装，接管 alert 并增强空状态。
+installFoliaV7Features();
 
 void import('./bootstrap');
 // window.__foliaDev and the ?skipStartup / ?mockSong launch flags (src/dev/devLaunchFlags.ts).

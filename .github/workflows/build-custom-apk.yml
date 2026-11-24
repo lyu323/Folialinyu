@@ -8,7 +8,7 @@ on:
     paths-ignore:
       - 'apk/**'
       - '输出APK/**'
-      - 'Folia定制版-v6.apk'
+      - 'Folia定制版-v7.apk'
       - 'versions/**'
       - 'README.md'
       - '构建诊断.txt'
@@ -45,26 +45,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 展开 v6 完整源码（云端 runner 本地磁盘，秒级完成）
+      - name: 校验 v7 源码树（根目录已是完整工程，无需解压）
         run: |
-          ZIP=versions/v6/Folia-v6-完整工程.zip
-          test -f "$ZIP" || { echo "缺少 v6 源码包"; exit 1; }
-          python3 - <<'PY'
-          import zipfile, os
-          z = zipfile.ZipFile('versions/v6/Folia-v6-完整工程.zip')
-          n = 0
-          for info in z.infolist():
-              name = info.filename
-              if info.is_dir() or name.startswith('.github/') or name == 'README.md':
-                  continue
-              z.extract(info, '.')
-              n += 1
-          print('展开源码文件数:', n)
-          os.chmod('android/gradlew', 0o755)
-          PY
-          sed -i 's#https://mirrors.cloud.tencent.com/gradle/#https://services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties || true
           test -f package.json && test -f android/gradlew && test -f capacitor.config.json
+          test -f src/styles/foliaV7Mist.css && test -f src/services/foliaV7Features.ts
           echo "构建版本:"; grep -m1 '"version"' package.json || true
+          sed -i 's#https://mirrors.cloud.tencent.com/gradle/#https://services.gradle.org/distributions/#' android/gradle/wrapper/gradle-wrapper.properties || true
+          chmod +x android/gradlew
 
       - name: 准备 Node.js 24
         uses: actions/setup-node@v4
@@ -85,7 +72,7 @@ jobs:
           path: |
             ${{ env.ANDROID_HOME }}/ndk
             ${{ env.ANDROID_HOME }}/cmake
-          key: android-ndk-28.2.13676358-cmake-3.22.1-v6
+          key: android-ndk-28.2.13676358-cmake-3.22.1-v7
 
       - name: 安装 SDK / NDK / CMake
         run: |
@@ -151,22 +138,22 @@ jobs:
         run: |
           mkdir -p 输出APK apk
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
-          cp "$APK" 输出APK/Folia定制版-v6.apk
-          cp "$APK" apk/Folia定制版-v6.apk
+          cp "$APK" 输出APK/Folia定制版-v7.apk
+          cp "$APK" apk/Folia定制版-v7.apk
           ls -lh apk/
 
       - name: 上传 Artifact（保底）
         uses: actions/upload-artifact@v4
         with:
-          name: Folia-定制版-v6-APK
-          path: 输出APK/Folia定制版-v6.apk
+          name: Folia-定制版-v7-APK
+          path: 输出APK/Folia定制版-v7.apk
           if-no-files-found: error
 
       - name: 把 APK 自动回推仓库
         run: |
           git config user.name "folia-build-bot"
           git config user.email "folia-build-bot@users.noreply.github.com"
-          git add -f apk/Folia定制版-v6.apk
+          git add -f apk/Folia定制版-v7.apk
           if git diff --cached --quiet; then
             echo "APK 未变化，跳过回推"
           else
@@ -174,22 +161,24 @@ jobs:
             git push origin HEAD:main
           fi
 
-      - name: 把 v6 完整源码树回推仓库
+      - name: 把 v7 完整源码树回推仓库
         if: success()
         continue-on-error: true
         run: |
           # 清掉构建期临时文件与签名私钥，绝不提交密钥
-          rm -f sdk-install.log npm-ci.log vite-build.log cap-sync.log gradle-build.log 构建诊断.txt
+          rm -f sdk-install.log npm-ci.log vite-build.log cap-sync.log gradle-build.log
           rm -f android/app/folia-custom.keystore android/keystore.properties
           rm -rf android/app/build android/build android/.gradle dist node_modules 输出APK
           git config user.name "folia-build-bot"
           git config user.email "folia-build-bot@users.noreply.github.com"
           git add -A
-          git add -f apk/Folia定制版-v6.apk 2>/dev/null || true
+          git add -f apk/Folia定制版-v7.apk 2>/dev/null || true
+          # v5/v6 归档与旧产物保持原样，不被本次提交改动
+          git reset -q -- versions/ folia-project.zip 构建诊断.txt apk/Folia定制版-v5.apk apk/Folia定制版-v6.apk 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "源码树与 APK 均无变化"
           else
-            git commit -m "chore: v6 完整源码树与编译产物 [skip ci]"
+            git commit -m "chore: v7 完整源码树与编译产物 [skip ci]"
             git push origin HEAD:main || echo "源码回推失败（不影响已上传的 APK）"
           fi
 
@@ -205,7 +194,7 @@ jobs:
               if [ -f "$f" ]; then echo "=== $f 尾部 ==="; tail -70 "$f"; fi
             done
             echo "=== 磁盘 ==="; df -h . | tail -2
-            echo "=== 源码包 ==="; ls -lh versions/v6/ 2>/dev/null | head -10
+            echo "=== 源码包 ==="; ls -lh versions/v7/ 2>/dev/null | head -10
           } > 构建诊断.txt 2>&1 || true
           git config user.name "folia-build-bot"
           git config user.email "folia-build-bot@localhost"
